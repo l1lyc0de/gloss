@@ -1,0 +1,16 @@
+{
+  "name": "gloss-test",
+  "private": true,
+  "description": "Gloss 的端到端测试。只在这里装 playwright，应用本身零依赖。",
+  "scripts": {
+    "dict": "node dict.js",
+    "formats": "node formats.js",
+    "lookup": "node lookup.js",
+    "pdf": "node pdf.js",
+    "e2e": "node e2e.js",
+    "all": "node dict.js && node formats.js && node lookup.js && node pdf.js && node e2e.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

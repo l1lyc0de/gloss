@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Gloss · 自己带文档的离线阅读器</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#B96A2B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gloss">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+<div id="app">
+  <div class="view on" id="view-home"></div>
+  <div class="view" id="view-import"></div>
+  <div class="view" id="view-read"></div>
+  <div class="view" id="view-words"></div>
+  <div class="view" id="view-vocab"></div>
+  <div class="view" id="view-review"></div>
+  <div class="view" id="view-me"></div>
+</div>
+
+<nav id="tabbar" class="ui">
+  <button data-tab="home" class="on"><span class="g">文</span>文档</button>
+  <button data-tab="vocab"><span class="g">词</span>词典</button>
+  <button data-tab="review"><span class="g">忆</span>复习<span class="badge" id="rbadge" hidden></span></button>
+  <button data-tab="me"><span class="g">我</span>进度</button>
+</nav>
+
+<div id="dim"></div>
+<div id="sheet"></div>
+<div id="toast"></div>
+<div id="busy"><div class="busybox"><div class="spin"></div><div class="busymsg"></div><div class="busybar"><i></i></div></div></div>
+
+<!-- 拖文件进来时的落点提示。pointer-events:none，别自己挡住 drop -->
+<div id="drop"><div class="dropbox">
+  <b>松手就开始读</b>
+  EPUB、Word、网页、纯文本，或者有文字层的 PDF
+  <span>文件只在这台设备上读取和存储，不会上传</span>
+</div></div>
+
+<!-- 用户选的文件只走这个 input，浏览器本地读取，不上传任何字节 -->
+<input type="file" id="filepick" accept=".epub,.pdf,.docx,.txt,.md,.markdown,.html,.htm,application/epub+zip,application/pdf,text/plain,text/html" hidden>
+
+<script src="/vendor/fflate.min.js"></script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

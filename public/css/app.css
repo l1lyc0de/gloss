@@ -1,0 +1,315 @@
+/* Gloss —— 配色和排版沿用「夜谈」那套纸灯氛围：暖纸底、灯光橙、衬线正文。
+   正文用衬线是因为要连读几十分钟，UI 用系统无衬线是因为要一眼扫过去。 */
+:root{
+  --paper:#F6F3EC; --ink:#232C3D; --ink-soft:#5A6478; --ink-faint:#9AA3B5;
+  --lamp:#B96A2B; --lamp-soft:#F0E2D0; --card:#FDFBF6; --line:#E3DDD0;
+  --mark:#6E7A93; --sheet:#FFFFFF; --ok:#5E7D5A; --warn:#B4533A;
+  --fs:18px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#151A24; --ink:#E4E0D5; --ink-soft:#A7ADBD; --ink-faint:#5E6577;
+    --lamp:#D98E4A; --lamp-soft:#3A2E20; --card:#1D2330; --line:#2A3140;
+    --mark:#8A94A8; --sheet:#222938; --ok:#7FA07A; --warn:#D2705A;
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{font-size:16px}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:Georgia,'Times New Roman','Songti SC','Noto Serif SC',serif;
+  min-height:100vh; overscroll-behavior-y:none;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button[disabled]{opacity:.4;cursor:default}
+.ui,button,input,textarea{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif}
+
+/* ---------- 外壳 ---------- */
+#app{max-width:640px;margin:0 auto;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+.view{display:none;padding:0 20px}
+.view.on{display:block}
+#tabbar{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:30;
+  width:100%;max-width:640px;background:var(--card);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);display:flex;
+}
+#tabbar button{flex:1;padding:9px 0 7px;text-align:center;color:var(--ink-faint);font-size:11px;line-height:1.2}
+#tabbar button .g{display:block;font-size:19px;font-family:Georgia,'Songti SC',serif;margin-bottom:2px}
+#tabbar button.on{color:var(--lamp)}
+#tabbar.hide{display:none}
+.badge{display:inline-block;min-width:16px;padding:0 4px;border-radius:8px;background:var(--lamp);color:#fff;font-size:10px;line-height:16px;margin-left:3px;vertical-align:top}
+/* display:inline-block 会盖掉 hidden 属性自带的 display:none，得显式补一条，
+   不然没有待复习的词时角标会挂着一个「0」*/
+.badge[hidden]{display:none}
+
+/* ---------- 通用零件 ---------- */
+.pagehead{padding:30px 0 12px;display:flex;align-items:baseline}
+.pagehead h2{font-size:22px;letter-spacing:.08em}
+.pagehead small{margin-left:auto;font-size:12px;color:var(--ink-faint)}
+.empty{padding:44px 10px;text-align:center;color:var(--ink-faint);font-size:13.5px;line-height:2}
+.empty .g{font-size:30px}
+.btn{display:block;width:100%;padding:13px;border-radius:12px;font-size:15px;text-align:center;
+  border:1px solid var(--line);color:var(--ink-soft);background:var(--card)}
+.btn.pri{background:var(--lamp);color:#FBF5EC;border-color:var(--lamp)}
+.btn.ghost{border:1.5px solid var(--lamp);color:var(--lamp);background:none}
+.btn.danger{color:var(--warn);border-color:var(--warn)}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.note{font-size:12px;color:var(--ink-faint);line-height:1.75}
+.mrow{margin-top:24px}
+.mrow h3{font-size:13px;letter-spacing:.1em;color:var(--ink-soft);margin-bottom:10px}
+
+/* ---------- 书架 ---------- */
+.brand{padding:34px 0 4px}
+.brand .zh-t{font-size:27px;letter-spacing:.14em;font-weight:600}
+.brand .en-t{font-size:12.5px;color:var(--ink-soft);font-style:italic;margin-top:5px;letter-spacing:.03em}
+.streakline{display:flex;align-items:baseline;gap:14px;margin:16px 0 4px;padding:14px 16px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px}
+.streakline b{font-size:26px;color:var(--lamp)}
+.streakline span{font-size:12px;color:var(--ink-soft)}
+
+/* 今晚：整个应用只有这一个主按钮。多一个选择就多一个犹豫的地方。 */
+.tonight{display:block;width:100%;text-align:left;margin:14px 0 8px;padding:18px;
+  background:linear-gradient(135deg,var(--lamp) 0%, #a05620 100%);color:#FBF5EC;border-radius:14px}
+.tonight .eyebrow{font-size:10.5px;letter-spacing:.18em;opacity:.85;text-transform:uppercase}
+.tonight .t{font-size:18px;margin-top:7px;font-family:Georgia,serif;line-height:1.35}
+.tonight .zt{font-size:12.5px;margin-top:5px;opacity:.92}
+/* 读才是目的，过词只是助跑 —— 两个等宽按钮会让人误以为要二选一 */
+.subacts{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.subacts button{padding:9px;font-size:12.5px;color:var(--ink-soft);
+  border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.subacts button.go{flex:1;color:var(--lamp);border-color:var(--lamp);
+  background:var(--lamp-soft);font-weight:600}
+.subacts button.quiet{flex:0 0 auto;padding:9px 6px;font-size:12px;background:none;
+  border-color:transparent;color:var(--ink-faint);
+  text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.subacts button.quiet:disabled{opacity:.45;text-decoration:none}
+
+/* 首页那行「生词按四级挑的 · 换一个」，只在他没自己选过时出现 */
+.lvhint{display:flex;align-items:center;gap:6px;width:100%;margin:0 0 10px;padding:8px 12px;
+  font-size:11.5px;color:var(--ink-faint);background:none;border:1px dashed var(--line);border-radius:10px}
+.lvhint span{margin-left:auto;color:var(--lamp);text-decoration:underline;
+  text-underline-offset:3px;flex-shrink:0}
+
+/* 进度页里的水平设置 + 面板里的一档一档 */
+.lvpick{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;text-align:left;
+  border:1px solid var(--line);border-radius:11px;background:var(--card)}
+.lvpick .n{font-size:15px;color:var(--ink)}
+.lvpick .h{font-size:11.5px;color:var(--ink-faint)}
+.lvpick .ck{margin-left:auto;font-size:12.5px;color:var(--lamp)}
+.lvlist{list-style:none}
+.lvlist li{margin-bottom:8px}
+.lvlist button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;text-align:left;
+  border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--ink-soft)}
+.lvlist button.on{border-color:var(--lamp);background:var(--lamp-soft)}
+.lvlist .n{font-size:15px;color:var(--ink)}
+.lvlist button.on .n{color:var(--lamp);font-weight:600}
+.lvlist .h{font-size:11.5px;color:var(--ink-faint)}
+.lvlist .ck{margin-left:auto;color:var(--lamp);font-size:15px}
+
+.shelf{list-style:none;margin-top:10px}
+.shelf li{border-bottom:1px solid var(--line)}
+.shelf .item{width:100%;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 2px}
+.shelf .cover{width:34px;height:46px;border-radius:3px;flex-shrink:0;
+  background:linear-gradient(150deg,var(--lamp-soft),var(--line));
+  border:1px solid var(--line);position:relative}
+.shelf .cover::after{content:'';position:absolute;left:4px;top:0;bottom:0;width:1px;background:rgba(0,0,0,.08)}
+.shelf .meta{flex:1;min-width:0}
+.shelf .bt{font-size:15px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shelf .bs{font-size:11.5px;color:var(--ink-faint);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shelf .nbar{height:3px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
+.shelf .nbar i{display:block;height:100%;background:var(--lamp);border-radius:2px}
+
+.addbook{display:block;width:100%;margin:20px 0 6px;padding:22px;border:1.5px dashed var(--line);
+  border-radius:14px;text-align:center;color:var(--ink-soft);font-size:14px;line-height:1.9}
+.addbook b{display:block;font-size:15px;color:var(--ink);font-weight:600;margin-bottom:4px}
+.addbook span{display:block;font-size:11.5px;color:var(--ink-faint);margin-top:4px}
+/* 「拖进来」只对有鼠标的设备说 —— 手机上没有可拖的桌面，写了是句废话 */
+.addbook .dnd{display:none}
+@media (hover:hover) and (pointer:fine){.addbook .dnd{display:block}}
+
+/* 拖文件到窗口任意位置的落点提示 */
+#drop{position:fixed;inset:0;z-index:65;display:none;align-items:center;justify-content:center;
+  padding:24px;background:rgba(15,18,28,.45);pointer-events:none}
+#drop.on{display:flex}
+.dropbox{background:var(--sheet);border:2px dashed var(--lamp);border-radius:16px;
+  padding:34px 30px;text-align:center;max-width:420px;width:100%;
+  color:var(--ink-soft);font-size:13px;line-height:1.9}
+.dropbox b{display:block;font-size:19px;color:var(--ink);font-weight:600;margin-bottom:6px}
+.dropbox span{display:block;font-size:11.5px;color:var(--ink-faint);margin-top:6px}
+
+/* ---------- 导入 / 预览闸门 ---------- */
+.impwrap{padding-top:26px}
+.impwrap h2{font-size:21px;letter-spacing:.06em;margin-bottom:6px}
+.impmeta{margin:14px 0;padding:14px 16px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.impmeta .t{font-size:16px;line-height:1.4}
+.impmeta .s{font-size:12px;color:var(--ink-soft);margin-top:6px}
+.flag{margin:12px 0;padding:12px 14px;border-radius:11px;font-size:13px;line-height:1.75;
+  background:var(--lamp-soft);color:var(--lamp);border:1px solid transparent}
+.flag.bad{background:transparent;border-color:var(--warn);color:var(--warn)}
+.preview{margin:14px 0;padding:16px 18px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;max-height:46vh;overflow-y:auto}
+.preview p{font-size:15.5px;line-height:1.75;margin-bottom:1em}
+.preview p:last-child{margin-bottom:0}
+.askline{margin:20px 0 10px;font-size:15px;text-align:center;line-height:1.7}
+.askline small{display:block;font-size:12px;color:var(--ink-faint);margin-top:6px}
+
+/* ---------- 阅读器 ---------- */
+#view-read{padding:0}
+.rhead{position:sticky;top:0;z-index:20;background:var(--paper);
+  display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.rhead .back{font-size:22px;padding:2px 10px;color:var(--ink-soft)}
+.rhead .where{flex:1;text-align:center;font-size:12px;color:var(--ink-soft);letter-spacing:.05em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rhead .act{font-size:12px;padding:5px 11px;border:1px solid var(--line);border-radius:14px;color:var(--ink-soft)}
+.rbody{padding:8px 22px 30px}
+.sec-eyebrow{font-size:10.5px;letter-spacing:.22em;color:var(--lamp);text-transform:uppercase;margin-top:24px}
+h1.sec-t{font-size:23px;line-height:1.35;font-weight:600;margin:8px 0 22px}
+.para{margin:0 0 1.35em}
+.para .en{font-size:var(--fs);line-height:1.75}
+.ptools{margin-top:4px}
+.ptools button{font-size:11px;color:var(--ink-faint);padding:2px 9px;border:1px solid var(--line);border-radius:11px}
+w{cursor:pointer;border-radius:2px}
+w.hard{border-bottom:1px dotted var(--ink-faint)}
+w.saved{border-bottom:1.5px solid var(--lamp);color:var(--lamp)}
+w.lit{background:var(--lamp-soft)}
+.donebtn{display:block;width:100%;margin:34px 0 10px;padding:14px;text-align:center;
+  border:1.5px solid var(--lamp);color:var(--lamp);border-radius:12px;font-size:15px}
+.donebtn.done{background:var(--lamp);color:#FBF5EC}
+.secnav{display:flex;justify-content:space-between;margin-bottom:26px}
+.secnav button{font-size:13px;color:var(--ink-soft);padding:8px 4px}
+
+/* ---------- 查词卡片 ---------- */
+#dim{position:fixed;inset:0;background:rgba(15,18,28,.45);z-index:40;display:none}
+#dim.on{display:block}
+#sheet{position:fixed;left:50%;transform:translate(-50%,105%);bottom:0;z-index:50;
+  width:100%;max-width:640px;background:var(--sheet);border-radius:18px 18px 0 0;
+  padding:20px 22px calc(20px + env(safe-area-inset-bottom));
+  transition:transform .22s ease;max-height:74vh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,.18)}
+#sheet.on{transform:translate(-50%,0)}
+.dw{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.dw .w{font-size:26px;font-weight:600}
+.dw .ph{font-size:14px;color:var(--ink-soft)}
+.dtags{margin:9px 0 2px;display:flex;gap:6px;flex-wrap:wrap}
+.dtags i{font-style:normal;font-size:10.5px;padding:2px 8px;border-radius:9px;
+  background:var(--lamp-soft);color:var(--lamp);font-family:-apple-system,sans-serif}
+.dtrans{margin-top:10px;font-size:15px;line-height:1.75;white-space:pre-line;
+  font-family:-apple-system,'PingFang SC',sans-serif}
+.dbase{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px;
+  color:var(--ink-soft);white-space:pre-line;font-family:-apple-system,'PingFang SC',sans-serif}
+.dsrc{margin-top:12px;font-size:13px;color:var(--ink-soft);font-style:italic;line-height:1.6}
+.dacts{display:flex;gap:10px;margin-top:16px}
+.dacts button{flex:1;padding:11px;border-radius:11px;font-size:14px;border:1px solid var(--line);color:var(--ink-soft)}
+.dacts button.pri{background:var(--lamp);color:#FBF5EC;border-color:var(--lamp)}
+.dacts button.rm{color:var(--warn);border-color:var(--warn)}
+
+/* ---------- 过词 ---------- */
+.wordwrap{padding-top:22px}
+.wordprog{font-size:12px;color:var(--ink-soft);margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.wordprog .nbar{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.wordprog .nbar i{display:block;height:100%;background:var(--lamp);transition:width .25s}
+.wcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px 22px;min-height:240px}
+.wcard .w{font-size:31px;font-weight:600;letter-spacing:.01em}
+.wcard .ph{margin-top:7px;color:var(--ink-soft);font-size:14.5px}
+.wcard .tags{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.wcard .tags i{font-style:normal;font-size:10.5px;padding:2px 8px;border-radius:9px;
+  background:var(--lamp-soft);color:var(--lamp);font-family:-apple-system,sans-serif}
+.wcard .tr{margin-top:14px;font-size:15px;line-height:1.8;white-space:pre-line;
+  font-family:-apple-system,'PingFang SC',sans-serif}
+/* 例句取自这本书里他今晚就要读到的那一句 —— 这是自带全文最大的免费优势 */
+.wcard .eg{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);
+  font-size:14.5px;line-height:1.7;font-style:italic;color:var(--ink-soft)}
+.wcard .eg b{font-style:normal;color:var(--lamp);font-weight:600}
+.wcard .cnt{margin-top:12px;font-size:11.5px;color:var(--ink-faint);font-family:-apple-system,sans-serif}
+.wacts{display:flex;gap:10px;margin-top:14px}
+.wacts button{flex:1;padding:12px;border-radius:12px;font-size:14px;border:1px solid var(--line);color:var(--ink-soft)}
+.wacts button.pri{background:var(--lamp);color:#FBF5EC;border-color:var(--lamp)}
+
+.pastebtn{display:block;width:100%;margin-top:8px;padding:11px;font-size:12.5px;
+  color:var(--ink-soft);border:1px solid var(--line);border-radius:11px;background:var(--card)}
+
+.pastewrap textarea{width:100%;height:34vh;margin-bottom:14px;padding:12px;
+  border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--ink);
+  font-size:15px;line-height:1.6;resize:none}
+.pastewrap textarea:focus{outline:none;border-color:var(--lamp)}
+
+/* ---------- 词典查词 ---------- */
+.lookup{display:flex;gap:8px;margin-bottom:6px}
+.lookup input{flex:1;min-width:0;padding:12px 14px;border:1px solid var(--line);border-radius:11px;
+  background:var(--card);color:var(--ink);font-size:15px}
+.lookup input:focus{outline:none;border-color:var(--lamp)}
+.lookup button{flex-shrink:0;padding:0 20px;border-radius:11px;font-size:14px;
+  background:var(--lamp);color:#FBF5EC}
+.lookupcard{margin:12px 0 4px;padding:16px 18px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px}
+.lookupcard .dtrans{max-height:40vh;overflow-y:auto}
+
+/* ---------- 生词本 ---------- */
+.vlist{list-style:none}
+.vlist li{border-bottom:1px solid var(--line)}
+.vlist button{width:100%;text-align:left;display:flex;align-items:baseline;gap:12px;padding:12px 2px}
+.vlist .w{font-size:16.5px;font-weight:600;min-width:92px}
+.vlist .m{flex:1;font-size:12.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-family:-apple-system,'PingFang SC',sans-serif}
+.vlist .due{font-size:10.5px;color:var(--lamp)}
+
+/* ---------- 复习 ---------- */
+.rvwrap{padding-top:24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:34px 24px;
+  text-align:center;min-height:250px;display:flex;flex-direction:column;justify-content:center}
+.card .w{font-size:30px;font-weight:600}
+.card .ph{margin-top:8px;color:var(--ink-soft);font-size:15px}
+.card .ans{margin-top:18px;font-size:15px;line-height:1.8;white-space:pre-line;text-align:left;
+  font-family:-apple-system,'PingFang SC',sans-serif}
+.card .src{margin-top:14px;font-size:13px;font-style:italic;color:var(--ink-soft);text-align:left;line-height:1.65}
+.rvbtns{display:flex;gap:10px;margin-top:16px}
+.rvbtns button{flex:1;padding:13px;border-radius:12px;font-size:14.5px;border:1px solid var(--line)}
+.rvbtns .b-again{color:var(--warn)}
+.rvbtns .b-good{background:var(--lamp);color:#FBF5EC;border-color:var(--lamp)}
+.showans{margin-top:16px;padding:13px;width:100%;border:1.5px solid var(--lamp);color:var(--lamp);
+  border-radius:12px;font-size:15px}
+
+/* ---------- 进度 / 设置 ---------- */
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:6px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 12px;text-align:center}
+.stat b{font-size:22px;color:var(--lamp);display:block}
+.stat span{font-size:11px;color:var(--ink-soft)}
+.fsbtns{display:flex;gap:10px;align-items:center}
+.fsbtns button{width:44px;height:36px;border:1px solid var(--line);border-radius:9px;font-size:15px;background:var(--card)}
+.fsbtns span{font-size:12.5px;color:var(--ink-soft)}
+.iobox{width:100%;height:88px;border:1px solid var(--line);border-radius:10px;background:var(--card);
+  color:var(--ink);padding:9px;font-size:11px;font-family:Menlo,monospace}
+.synccode{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px}
+.synccode .code{font-size:19px;letter-spacing:.06em;font-family:Menlo,monospace;font-weight:600}
+.synccode .copy{margin-left:auto;font-size:12.5px;color:var(--lamp);border:1px solid var(--lamp-soft);
+  padding:6px 12px;border-radius:9px;flex-shrink:0}
+.syncstatus{margin-top:8px;font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px}
+.syncstatus .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint)}
+.syncstatus.ok .dot{background:var(--ok)}
+.syncstatus.err .dot{background:var(--warn)}
+.syncrestore input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;
+  background:var(--card);color:var(--ink);font-size:14px;font-family:Menlo,monospace;letter-spacing:.04em}
+.dlbox{padding:16px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.dlbox .t{font-size:15px;font-weight:600}
+.dlbox .s{font-size:12.5px;color:var(--ink-soft);line-height:1.85;margin:8px 0 14px}
+.foot{margin:36px 0 12px;text-align:center;font-size:11px;color:var(--ink-faint);line-height:1.9}
+
+/* ---------- 浮层 ---------- */
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));
+  background:var(--ink);color:var(--paper);font-size:13px;padding:9px 18px;border-radius:18px;
+  opacity:0;transition:opacity .25s;z-index:60;pointer-events:none;max-width:80%;text-align:center}
+#toast.on{opacity:.95}
+#busy{position:fixed;inset:0;background:rgba(15,18,28,.45);z-index:70;display:none;
+  align-items:center;justify-content:center}
+#busy.on{display:flex}
+.busybox{background:var(--sheet);border-radius:14px;padding:26px 30px;text-align:center;min-width:220px;max-width:80%}
+.busymsg{font-size:13.5px;color:var(--ink-soft);margin-top:14px;line-height:1.6}
+.busybar{height:3px;background:var(--line);border-radius:2px;margin-top:14px;overflow:hidden;display:none}
+.busybar.on{display:block}
+.busybar i{display:block;height:100%;width:0;background:var(--lamp);transition:width .2s}
+.spin{width:26px;height:26px;margin:0 auto;border:2.5px solid var(--line);border-top-color:var(--lamp);
+  border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}

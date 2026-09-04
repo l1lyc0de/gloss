@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="42" fill="#B96A2B"/>
+  <!-- gloss 本义就是写在原文词句旁边的那一小条释义 -->
+  <rect x="42" y="58" width="72" height="9" rx="4.5" fill="#FBF5EC"/>
+  <rect x="42" y="84" width="96" height="9" rx="4.5" fill="#FBF5EC"/>
+  <rect x="42" y="110" width="58" height="9" rx="4.5" fill="#FBF5EC"/>
+  <rect x="42" y="136" width="80" height="9" rx="4.5" fill="#FBF5EC" opacity=".45"/>
+  <path d="M118 104h34" stroke="#2A1B0E" stroke-width="7" stroke-linecap="round" opacity=".55"/>
+</svg>

@@ -1,0 +1,4 @@
+.DS_Store
+sync-data/
+test/fixtures/
+test/*.png
