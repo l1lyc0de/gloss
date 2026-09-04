@@ -46,6 +46,12 @@ const CODE_RE = /^[A-Z0-9]{4,8}-[A-Z0-9]{4,8}$/;
 
 // 每 IP 每分钟 120 次，够一台设备防抖同步用很多倍
 const hits = new Map();
+function clientIp(req) {
+  const cloudflareIp = req.headers['cf-connecting-ip'];
+  if (typeof cloudflareIp === 'string' && cloudflareIp) return cloudflareIp;
+  return req.socket.remoteAddress || '?';
+}
+
 function rateLimited(ip) {
   const now = Date.now();
   const win = Math.floor(now / 60000);
@@ -166,7 +172,7 @@ const server = http.createServer((req, res) => {
   const p = url.pathname;
 
   if (p.startsWith('/api/')) {
-    const ip = req.socket.remoteAddress || '?';
+    const ip = clientIp(req);
     if (rateLimited(ip)) return json(res, 429, { error: 'rate_limited' });
     if (p === '/api/health') return json(res, 200, { ok: true, time: Date.now() });
     const m = p.match(/^\/api\/sync\/([^/]+)$/);

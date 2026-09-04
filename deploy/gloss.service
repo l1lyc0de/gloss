@@ -1,0 +1,25 @@
+[Unit]
+Description=Gloss offline reader web service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gloss
+Group=gloss
+WorkingDirectory=/opt/gloss/app
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=5173
+ExecStart=/usr/bin/node /opt/gloss/app/server.js
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/gloss/app/sync-data
+
+[Install]
+WantedBy=multi-user.target
