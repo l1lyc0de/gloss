@@ -137,6 +137,11 @@ button[disabled]{opacity:.4;cursor:default}
 .tocfront{display:block;width:100%;margin-top:10px;padding:10px;font-size:12px;
   color:var(--ink-faint);border:1px dashed var(--line);border-radius:11px;line-height:1.6}
 
+/* 「我的」页的版本行：版本号在左，检查更新在右 */
+.verline{display:flex;align-items:center;gap:12px}
+.verline .v{font-size:14px;color:var(--ink)}
+.verline .btn{margin-left:auto;width:auto;padding:8px 14px;font-size:12.5px}
+
 .addbook{display:block;width:100%;margin:20px 0 6px;padding:22px;border:1.5px dashed var(--line);
   border-radius:14px;text-align:center;color:var(--ink-soft);font-size:14px;line-height:1.9}
 .addbook b{display:block;font-size:15px;color:var(--ink);font-weight:600;margin-bottom:4px}

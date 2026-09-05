@@ -4,6 +4,7 @@ package com.lilycode.gloss;
 //
 //   1. 把安装包 assets 里的网页当成一个正经的 https 站点喂给 WebView
 //   2. 接上 WebView 自己不做的两件事：选文件、返回键
+//   3. 告诉网页自己是哪个版本，以及去哪儿看有没有新版
 //
 // 为什么不能直接 loadUrl("file:///android_asset/index.html")：
 // 网页版是 ES module（app.js 里一串 import），file:// 的来源是 "null"，
@@ -16,6 +17,7 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -174,7 +176,35 @@ public class MainActivity extends ComponentActivity {
             }
         });
 
+        web.addJavascriptInterface(new NativeBridge(), "GlossNative");
+
         if (savedInstanceState == null) web.loadUrl(INDEX);
+    }
+
+    /**
+     * 给网页看的两个常量。**只读、只返回编译期字符串**，没有任何一个方法能碰到
+     * 文件、网络或 Intent —— 这条界限是刻意的：addJavascriptInterface 暴露出去的
+     * 是真正的 Java 对象，网页拿到什么就能调什么。
+     *
+     * 而且这个 WebView 只加载安装包里的 assets（外链在 shouldOverrideUrlLoading
+     * 里被丢给系统浏览器了），网页内容是我们自己的，不存在第三方脚本拿到这个桥。
+     *
+     * 「检查更新」为什么只是打开一个网址：App 内下载安装要 INTERNET +
+     * REQUEST_INSTALL_PACKAGES 两个权限，而权限表是「装完再也不联网」这句承诺
+     * 唯一能被外人核实的地方（见 AndroidManifest.xml）。用 ACTION_VIEW 唤起浏览器
+     * 不需要任何权限 —— 抓取动作是浏览器做的，不是这个 App。
+     */
+    public final class NativeBridge {
+        @JavascriptInterface
+        public String version() {
+            return BuildConfig.VERSION_NAME;
+        }
+
+        /** 空串表示这个包没配站点地址，网页那边据此整个不显示「检查更新」。 */
+        @JavascriptInterface
+        public String updateUrl() {
+            return BuildConfig.UPDATE_URL;
+        }
     }
 
     /** 从 assets 里直接读，自己报 MIME。assets 的根就是 gloss/public。 */

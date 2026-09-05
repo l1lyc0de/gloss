@@ -11,3 +11,6 @@ app/build/
 *.jks
 *.keystore
 keystore.properties
+
+# 站点地址属于部署信息，仓库是公开的
+site.properties

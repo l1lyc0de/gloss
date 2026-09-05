@@ -6,6 +6,14 @@ def keystoreProps = new Properties()
 def keystorePropsFile = rootProject.file('keystore.properties')
 if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
 
+// 更新地址同理，也不进仓库 —— 这个仓库是公开的，站点地址属于部署信息。
+// 文件不在就是空串，「检查更新」入口整个不出现（和「服务器上没放包时
+// 网页版不露下载入口」是同一条规矩：不留一个点下去没反应的按钮）。
+def siteProps = new Properties()
+def sitePropsFile = rootProject.file('site.properties')
+if (sitePropsFile.exists()) sitePropsFile.withInputStream { siteProps.load(it) }
+def updateUrl = siteProps.getProperty('updateUrl', '')
+
 android {
     namespace 'com.lilycode.gloss'
     compileSdk 34
@@ -14,8 +22,15 @@ android {
         applicationId "com.lilycode.gloss"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
+
+        buildConfigField "String", "UPDATE_URL", "\"${updateUrl}\""
+    }
+
+    // 只为了 BuildConfig.UPDATE_URL —— AGP 8 起这个开关默认是关的
+    buildFeatures {
+        buildConfig true
     }
 
     // 网页版就是这个 App 的全部内容。assets 直接指向 gloss/public，

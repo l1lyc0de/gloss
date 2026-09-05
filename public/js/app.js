@@ -15,7 +15,7 @@ import { parsePdf } from './pdf.js';
 import { parseTextDoc, parseHtmlDoc, parseDocx } from './doc.js';
 import { makeSections, englishRatio, WORD_RE, pickSentence } from './text.js';
 import * as vocab from './vocab.js';
-import { NATIVE } from './env.js';
+import { NATIVE, NATIVE_VERSION, UPDATE_URL } from './env.js';
 
 /* ================= 全局 ================= */
 
@@ -1035,6 +1035,23 @@ async function renderMe() {
         ? '装完之后词典在本机，读书不用再连这台服务器。'
         : '这是安卓安装包，在安卓手机上打开这个页面才装得了。'}
         安装包里没有申请联网权限，装完就是彻底离线的。</div></div>`;
+  }
+
+  // App 版：显示自己是哪个版本，并给一条去看有没有新版的路。
+  //
+  // 这里**故意不做 App 内检查和自动安装**。那需要 INTERNET 和
+  // REQUEST_INSTALL_PACKAGES 两个权限，而权限表是「装完再也不联网」这句承诺
+  // 唯一能被外人核实的地方 —— 为了省用户两步操作，把产品最硬的那张牌换掉，
+  // 换不来。这个链接由系统浏览器打开（壳的 shouldOverrideUrlLoading 接住外链），
+  // 抓取动作是浏览器做的，这个 App 一个字节都没联网。
+  if (NATIVE && NATIVE_VERSION) {
+    h += `<div class="mrow ui"><h3>版本</h3>
+      <div class="verline"><span class="v">Gloss ${esc(NATIVE_VERSION)}</span>${UPDATE_URL
+        ? `<a class="btn ghost" href="${esc(UPDATE_URL)}">检查更新</a>` : ''}</div>
+      <div class="note" style="margin-top:8px">${UPDATE_URL
+        ? '会用系统浏览器打开下载页，那儿写着最新版本号。有新版就在浏览器里下载安装 —— 和你第一次装它是同一条路。'
+        : '这个安装包没有配下载页地址，只能手动去拿新版。'}
+        <b>App 自己不联网</b>，也不会在后台悄悄检查更新。</div></div>`;
   }
 
   h += `<div class="mrow ui"><h3>离线词典</h3><div class="dlbox" id="dlbox">正在检查…</div></div>
