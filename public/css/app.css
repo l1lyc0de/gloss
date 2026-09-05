@@ -201,6 +201,27 @@ w.lit{background:var(--lamp-soft)}
 .secnav{display:flex;justify-content:space-between;margin-bottom:26px}
 .secnav button{font-size:13px;color:var(--ink-soft);padding:8px 4px}
 
+/* 滚动时浮出来的节间导航，停手后自己淡走（逻辑见 app.js 的 showFloatNav）。
+   z-index 压在 #tabbar(30) 下面：它本来就浮在 tabbar 上方一截，
+   真叠上了也该让底部导航赢。 */
+.floatnav{
+  position:fixed; left:50%; z-index:28;
+  bottom:calc(64px + env(safe-area-inset-bottom) + 12px);
+  transform:translate(-50%,12px);
+  display:flex; align-items:center; gap:2px;
+  padding:4px; border-radius:999px;
+  background:var(--sheet); border:1px solid var(--line);
+  box-shadow:0 6px 26px rgba(0,0,0,.16);
+  opacity:0; pointer-events:none;
+  transition:opacity .2s ease, transform .2s ease;
+}
+.floatnav.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.floatnav button{padding:9px 16px;border-radius:999px;font-size:18px;color:var(--ink);line-height:1}
+.floatnav button[disabled]{opacity:.25}
+.floatnav .mid{padding:9px 14px;font-size:12.5px;color:var(--lamp);white-space:nowrap}
+span.floatnav-mid,.floatnav span.mid{color:var(--ink-faint)}
+@media (prefers-reduced-motion:reduce){.floatnav{transition:none}}
+
 /* ---------- 查词卡片 ---------- */
 #dim{position:fixed;inset:0;background:rgba(15,18,28,.45);z-index:40;display:none}
 #dim.on{display:block}
@@ -322,6 +343,8 @@ w.lit{background:var(--lamp-soft)}
   background:var(--ink);color:var(--paper);font-size:13px;padding:9px 18px;border-radius:18px;
   opacity:0;transition:opacity .25s;z-index:60;pointer-events:none;max-width:80%;text-align:center}
 #toast.on{opacity:.95}
+/* 节间浮层在时把提示条顶上去，否则两个都停在底部同一条带上（见 app.js setFloatNav）*/
+body.fnav-on #toast{bottom:calc(134px + env(safe-area-inset-bottom))}
 #busy{position:fixed;inset:0;background:rgba(15,18,28,.45);z-index:70;display:none;
   align-items:center;justify-content:center}
 #busy.on{display:flex}

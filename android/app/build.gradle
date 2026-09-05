@@ -22,8 +22,11 @@ android {
         applicationId "com.lilycode.gloss"
         minSdk 26
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        // 三段式。versionCode 是给系统比大小的整数，versionName 是给人看的，
+        // 两者各管各的 —— 改 versionName 时别忘了 versionCode 也要涨，
+        // 不涨的话系统认为不是新版，装不上去。
+        versionName "1.2.0"
 
         buildConfigField "String", "UPDATE_URL", "\"${updateUrl}\""
     }

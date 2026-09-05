@@ -624,6 +624,9 @@ async function openSection(id, si, opts = {}) {
   await ensureSectionDict(sec);
   busy.hide();
   go('read', { id, si, ...opts });
+  // 进来先亮一下：不滚动的人否则永远不知道有这个东西。
+  // 放在 go() 之后 —— 那里面有 scrollTo(0,0)，会先把定时器清掉。
+  requestAnimationFrame(showFloatNav);
 }
 
 function renderRead({ id, si }) {
@@ -649,7 +652,14 @@ function renderRead({ id, si }) {
       <button data-act="sec" data-si="${si - 1}" ${si <= 0 ? 'disabled' : ''}>‹ 上一节</button>
       ${hasToc(m) ? `<button data-act="toc" data-id="${id}">目录</button>` : ''}
       <button data-act="sec" data-si="${si + 1}" ${si >= book.sections.length - 1 ? 'disabled' : ''}>下一节 ›</button>
-    </div></div>`;
+    </div></div>
+    <div class="floatnav ui" id="floatnav">
+      <button data-act="sec" data-si="${si - 1}" ${si <= 0 ? 'disabled' : ''} aria-label="上一节">‹</button>
+      ${hasToc(m)
+        ? `<button class="mid" data-act="toc" data-id="${id}">目录 · ${si + 1}/${book.sections.length}</button>`
+        : `<span class="mid">${si + 1}/${book.sections.length}</span>`}
+      <button data-act="sec" data-si="${si + 1}" ${si >= book.sections.length - 1 ? 'disabled' : ''} aria-label="下一节">›</button>
+    </div>`;
 
   const v = $('#view-read');
   v.innerHTML = h;
@@ -662,6 +672,55 @@ function renderRead({ id, si }) {
   }));
   wire('#view-read');
 }
+
+/* ---------- 浮动的节间导航 ----------
+ *
+ * 原来翻页只有正文末尾那一排，想跳走得先把整节滚完 —— 本末倒置：
+ * 「我不想读这节了」恰恰是最需要马上能走的时候。
+ *
+ * 所以做成滚动时浮出来、停手 1.6 秒后自己淡走。常驻会一直压着正文，
+ * 而这个 App 的正文是拿来连读几十分钟的，不能有东西一直杵在那儿。
+ */
+const FNAV_HOLD = 1600;
+let fnavT = null;
+
+/* 浮层和 toast 都停在屏幕底部同一带上（76–116px vs 84–119px），会叠。
+   浮层在时给 body 打个标记，CSS 把 toast 顶上去一档。
+   用 class 而不是 :has()，是因为 minSdk 26 的机器上 WebView 版本无法预期。 */
+function setFloatNav(on) {
+  const el = $('#floatnav');
+  if (el) el.classList.toggle('on', on);
+  document.body.classList.toggle('fnav-on', on);
+}
+
+function hideFloatNav() {
+  clearTimeout(fnavT);
+  setFloatNav(false);
+}
+
+function showFloatNav() {
+  if (route.view !== 'read') return;
+  const el = $('#floatnav');
+  if (!el) return;
+  clearTimeout(fnavT);
+
+  // 查词卡片开着的时候不冒出来 —— 那会儿人在看释义，不是在找路
+  if ($('#sheet').classList.contains('on')) { setFloatNav(false); return; }
+
+  // 正文末尾那一排已经在视野里了就不重复。同一个功能同时出现两次，
+  // 人会以为是两个不同的东西。
+  const stat = $('#view-read .secnav');
+  if (stat && stat.getBoundingClientRect().top < window.innerHeight - 24) {
+    setFloatNav(false);
+    return;
+  }
+
+  setFloatNav(true);
+  fnavT = setTimeout(() => setFloatNav(false), FNAV_HOLD);
+}
+
+// 监听器只挂一次。挂在每次 renderRead 里的话，读十节就叠十个。
+window.addEventListener('scroll', showFloatNav, { passive: true });
 
 function markSectionDone(id, si) {
   const m = bookMeta(id);
@@ -709,6 +768,7 @@ function openSheet(raw, contextText, bookId, si) {
   $('#sheet').innerHTML = h;
   $('#sheet').classList.add('on');
   $('#dim').classList.add('on');
+  hideFloatNav();   // 卡片和浮动导航都在屏幕下方，叠在一起会打架
   wire('#sheet');
 }
 
@@ -793,6 +853,7 @@ async function openTocSheet(id) {
 
 function closeSheet() {
   $('#sheet').classList.remove('on');
+  clearTimeout(fnavT);
   $('#dim').classList.remove('on');
   $$('w.lit').forEach((x) => x.classList.remove('lit'));
 }
