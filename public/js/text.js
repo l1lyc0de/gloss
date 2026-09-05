@@ -90,6 +90,19 @@ export function pickSentence(text, word, max = 240) {
   return best.length > max ? best.slice(0, max).trim() + '…' : best;
 }
 
+/**
+ * 「这一章是不是前置/后置内容」的标题兜底判定。EPUB 和 PDF 共用一套 ——
+ * 同一本书换个格式导进来，判定结果不该不一样。
+ *
+ * ⚠️ 只匹配**整个标题**，不做包含匹配：「Acknowledgments」是前置内容，
+ * 而「The Acknowledgment」是小说的一章，包含匹配会把后者一起误杀。
+ *
+ * 这是兜底。EPUB 有 landmarks / guide / epub:type 三层标准字段，
+ * PDF 有书签目录 —— 能读到的时候一律以那些为准，轮不到猜。
+ */
+export const FRONT_RE = /^(cover|封面|title\s*page|扉页|copyright|版权|版权页|imprint|colophon|contents|table\s+of\s+contents|目录|dedication|献词|epigraph|题记|acknowledg(e)?ments?|致谢|foreword|序|序言|preface|前言|praise\s+for\b.*|also\s+by\b.*|about\s+the\s+(author|publisher)|front\s*matter|half\s*title)\s*$/i;
+export const BACK_RE = /^(index|索引|notes?|注释|尾注|bibliography|参考文献|works\s+cited|appendix.*|附录.*|glossary|术语表|about\s+the\s+author|back\s*matter|afterword|后记|colophon)\s*$/i;
+
 const TARGET_WORDS = 900;   // 一节大约读五到八分钟，正好是碎片时间的长度
 const MIN_TAIL = 320;       // 尾巴太短就并回上一节，别留个只有两段的零头
 
@@ -97,12 +110,18 @@ const MIN_TAIL = 320;       // 尾巴太短就并回上一节，别留个只有�
  * 把章节切成「节」。粒度是刻意选的：产品的单位是「今晚这一节」，
  * 不是「这本书」——目标是每次打开都有个能读完的东西。
  *
- * @param chapters [{title, paras:[string]}]
- * @returns [{title, chapter, paras:[string], words}]
+ * 每一节都记得自己是从哪一章切下来的（ci / chapter）以及那一章的性质
+ * （kind: front 版权页目录之类 / body 正文 / back 索引附录）。
+ * 这两样是「按章选读」和「别把人扔在版权页上」的全部依据 ——
+ * 解析器已经按 EPUB 规范判好了，这里只负责原样带下去，不再自己猜。
+ *
+ * @param chapters [{title, paras:[string], kind?, depth?}]
+ * @returns [{title, chapter, ci, kind, depth, paras:[string], words}]
  */
 export function makeSections(chapters, target = TARGET_WORDS) {
   const secs = [];
-  for (const ch of chapters) {
+  for (let ci = 0; ci < chapters.length; ci++) {
+    const ch = chapters[ci];
     const paras = ch.paras.filter((p) => p && p.trim());
     if (!paras.length) continue;
     // 用体量而不是英文词数判断，否则整章非拉丁文字的内容会被当成版权页丢掉
@@ -126,6 +145,9 @@ export function makeSections(chapters, target = TARGET_WORDS) {
       secs.push({
         title: pieces.length > 1 ? `${ch.title}（${i + 1}/${pieces.length}）` : ch.title,
         chapter: ch.title,
+        ci,
+        kind: ch.kind || 'body',
+        depth: ch.depth || 0,
         paras: pc.paras,
         // words 一律是**英文词数**：它只拿来估阅读时间和显示，分节靠的是上面的体量
         words: pc.paras.reduce((n, p) => n + countWords(p), 0),

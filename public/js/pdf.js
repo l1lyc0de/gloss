@@ -11,7 +11,7 @@
 //   剩下的「这本书抽得对不对」交给预览页让人眼看。
 // 人眼判断这个是零成本、零误判的，比一堆启发式规则准得多。
 
-import { normalizeText, joinLines } from './text.js';
+import { normalizeText, FRONT_RE, BACK_RE, joinLines } from './text.js';
 
 let pdfjsP = null;
 function pdfjs() {
@@ -168,7 +168,9 @@ function linesToParagraphs(all) {
   const paras = [];
   let cur = null;
   const flush = () => {
-    if (cur && cur.lines.length) paras.push({ text: joinLines(cur.lines), fs: cur.fs, isHead: cur.isHead });
+    if (cur && cur.lines.length) {
+      paras.push({ text: joinLines(cur.lines), fs: cur.fs, isHead: cur.isHead, page: cur.page });
+    }
     cur = null;
   };
 
@@ -189,11 +191,82 @@ function linesToParagraphs(all) {
       if (!brk && prev.right < medRight - colWidth * 0.12 && /[.!?"’”)]$/.test(prev.text)) brk = true;
     }
     if (brk) flush();
-    if (!cur) cur = { lines: [], fs: ln.fs, isHead };
+    if (!cur) cur = { lines: [], fs: ln.fs, isHead, page: ln.page };
     cur.lines.push(ln.text);
   }
   flush();
   return { paras, bodyFs };
+}
+
+/**
+ * PDF 自带的书签目录（Outline）。这是 PDF 里唯一一处「作者亲手写下的章节结构」，
+ * 有它就照读，没有就算了 —— 不去从字号、编号、留白反推目录。
+ *
+ * **刻意不做的三件事**，每一件都是无底洞，而收益只覆盖越来越窄的一撮书：
+ *
+ *   1. 书签指到页面中部时不在页中切。一页两章的排法（散文集、诗集）确实存在，
+ *      但要切准得把书签的 y 坐标和抽出来的行对齐，而这两套坐标系
+ *      在旋转页、裁剪框、多 MediaBox 的文件里对不上。整页归给该页第一个书签。
+ *   2. 只取顶层书签。嵌套的「第三章 > 3.1 > 3.1.2」展开之后节比段还多，
+ *      对「今晚读一节」这个单位是负作用。
+ *   3. 没有书签就不猜前置内容。EPUB 那边敢猜是因为还有 landmarks / guide
+ *      两层标准字段兜底，PDF 什么都没有，猜错就是把正文第一章跳掉。
+ */
+async function readOutline(doc) {
+  let ol = null;
+  try { ol = await doc.getOutline(); } catch { return null; }
+  if (!ol || ol.length < 2) return null;
+
+  const out = [];
+  for (const it of ol) {
+    const title = normalizeText(it.title || '');
+    if (!title) continue;
+    let page = null;
+    try {
+      const dest = typeof it.dest === 'string' ? await doc.getDestination(it.dest) : it.dest;
+      const ref = dest && dest[0];
+      // dest[0] 可能是页对象引用，也可能直接是页序号（显式目标）
+      if (ref && typeof ref === 'object') page = await doc.getPageIndex(ref);
+      else if (Number.isInteger(ref)) page = ref;
+    } catch { /* 单条解析不出来就丢掉这条，别牵连整份目录 */ }
+    if (!Number.isInteger(page) || page < 0) continue;
+    out.push({ title: title.slice(0, 80), page });
+  }
+
+  out.sort((a, b) => a.page - b.page);
+  // 同一页上的多个书签只留第一个 —— 见上面第 1 条，不在页中切
+  const uniq = out.filter((e, i) => i === 0 || e.page !== out[i - 1].page);
+  // 全挤在一两页上说明这份目录没有分章的价值（常见于只标了封面和正文的扫描转换件）
+  return uniq.length >= 2 ? uniq : null;
+}
+
+/** 按书签把段落切成章。段落落在哪一章，看它的页码在哪两个书签之间。 */
+function chaptersByOutline(paras, outline) {
+  const chapters = outline.map((e) => ({
+    title: e.title,
+    kind: FRONT_RE.test(e.title) ? 'front' : (BACK_RE.test(e.title) ? 'back' : 'body'),
+    paras: [],
+  }));
+  // 第一个书签之前还有正文的话，那是封面扉页那一段，单独归一章，不丢
+  let lead = null;
+  for (const p of paras) {
+    const t = p.text.trim();
+    if (!t) continue;
+    let k = -1;
+    for (let i = 0; i < outline.length; i++) {
+      if (p.page >= outline[i].page) k = i; else break;
+    }
+    if (k < 0) {
+      if (!lead) lead = { title: '（正文之前）', kind: 'front', paras: [] };
+      lead.paras.push(t);
+    } else {
+      chapters[k].paras.push(t);
+    }
+  }
+  const all = lead ? [lead, ...chapters] : chapters;
+  const kept = all.filter((c) => c.paras.length);
+  // 全书都堆进了一章 = 这份目录没起到作用，退回字号那条路
+  return kept.length >= 2 ? kept : null;
 }
 
 export async function parsePdf(arrayBuffer, fileName, onProgress) {
@@ -253,22 +326,32 @@ export async function parsePdf(arrayBuffer, fileName, onProgress) {
 
   const { paras } = linesToParagraphs(all);
 
-  // 标题行开一个新章；一本 PDF 检不出任何标题就整本当一章，交给字数分节
-  const chapters = [];
-  let cur = null;
-  for (const p of paras) {
-    const t = p.text.trim();
-    if (!t) continue;
-    if (p.isHead) {
-      cur = { title: t.slice(0, 80), paras: [] };
-      chapters.push(cur);
-    } else {
-      if (!cur) { cur = { title: '正文', paras: [] }; chapters.push(cur); }
-      cur.paras.push(t);
+  // 章节从哪来，两条路，优先级分明：
+  //   1. PDF 自带的书签目录 —— 作者写的，可信
+  //   2. 字号比正文大的行 —— 猜的，猜错顶多章名难看，不影响正文完整
+  const outline = await readOutline(doc);
+  let kept = outline ? chaptersByOutline(paras, outline) : null;
+  const byOutline = !!kept;
+
+  if (!kept) {
+    const chapters = [];
+    let cur = null;
+    for (const p of paras) {
+      const t = p.text.trim();
+      if (!t) continue;
+      if (p.isHead) {
+        cur = { title: t.slice(0, 80), paras: [] };
+        chapters.push(cur);
+      } else {
+        if (!cur) { cur = { title: '正文', paras: [] }; chapters.push(cur); }
+        cur.paras.push(t);
+      }
     }
+    kept = chapters.filter((c) => c.paras.length);
   }
-  const kept = chapters.filter((c) => c.paras.length);
   if (!kept.length) throw new Error('这份 PDF 里抽不出成段的正文');
+  // 全被判成前置内容说明判错了，宁可一节不跳也不能打开是空的（和 EPUB 那边同一条兜底）
+  if (!kept.some((c) => c.kind === 'body')) for (const c of kept) c.kind = 'body';
 
   const flags = [];
   if (looksTwoColumn(cov)) {
@@ -297,5 +380,6 @@ export async function parsePdf(arrayBuffer, fileName, onProgress) {
     author: normalizeText(author || ''),
     chapters: kept,
     flags,
+    toc: { source: byOutline ? 'outline' : 'headings' },
   };
 }

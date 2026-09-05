@@ -105,3 +105,55 @@ def scanned(path):
 single(os.path.join(OUT, 'single.pdf'))
 single(os.path.join(OUT, 'twocol.pdf'), two_col=True)
 scanned(os.path.join(OUT, 'scanned.pdf'))
+
+
+# ---------------------------------------------------------------------------
+# outline.pdf —— 带书签目录的 PDF。这是 PDF 里唯一一处「作者亲手写下的章节结构」，
+# 有它才谈得上按章选读；没有的话我们不猜（见 pdf.js 里 readOutline 的注释）。
+#
+# 这份测试件自带文本，不依赖 ROOT 那份 book.json —— 它在仓库外面。
+FILLER = ("The party of the first part shall indemnify and hold harmless the party of the "
+          "second part against any liabilities arising from the aforementioned obligations, "
+          "notwithstanding any provision to the contrary contained herein. The foregoing "
+          "shall not be construed to limit any remedy otherwise available at law or in "
+          "equity to either party under the terms of this agreement. ")
+
+OUTLINE_SPEC = [
+    ('Cover', 1), ('Copyright', 1), ('Contents', 1),
+    ('Chapter 1', 2), ('Chapter 2', 2), ('Chapter 3', 2),
+    ('Chapter 4', 2), ('Chapter 5', 2), ('Chapter 6', 2),
+    ('Index', 1),
+]
+
+
+def outline_pdf(path):
+    c = canvas.Canvas(path, pagesize=letter)
+    top, bottom, left, width = H - 78, 70, 72, W - 144
+    for title, npages in OUTLINE_SPEC:
+        for pg in range(npages):
+            key = None
+            if pg == 0:
+                key = 'k_' + title.replace(' ', '_')
+                c.bookmarkPage(key)
+                c.addOutlineEntry(title, key, level=0)
+            y = top
+            if pg == 0:                       # 章首大字标题，字号判定那条路也得有的看
+                c.setFont(FONT, 20)
+                c.drawString(left, y, title)
+                y -= 34
+            c.setFont(FONT, SIZE)
+            while y > bottom:
+                for ln in wrap(c, FILLER * 2, width):
+                    if y <= bottom:
+                        break
+                    c.drawString(left, y, ln)
+                    y -= LEAD
+                y -= LEAD                     # 段间距
+            c.showPage()
+    c.showOutline()                            # 不调用这句，书签根本不会写进 PDF
+    c.save()
+    print(f'outline.pdf: {len(OUTLINE_SPEC)} 个书签，'
+          f'{sum(n for _, n in OUTLINE_SPEC)} 页，{os.path.getsize(path)//1024} KB')
+
+
+outline_pdf(os.path.join(OUT, 'outline.pdf'))

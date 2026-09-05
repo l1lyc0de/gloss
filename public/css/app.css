@@ -120,6 +120,22 @@ button[disabled]{opacity:.4;cursor:default}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shelf .nbar{height:3px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
 .shelf .nbar i{display:block;height:100%;background:var(--lamp);border-radius:2px}
+/* 书架每本书右侧的目录入口。不能嵌在 .item 里 —— button 套 button 是非法 HTML，
+   浏览器会把内层拆出去，点击行为跟着一起坏掉 */
+.shelf li{display:flex;align-items:center;gap:4px}
+.shelf .item{flex:1;min-width:0}
+.shelf .tocbtn{flex-shrink:0;align-self:stretch;padding:0 10px;font-size:11.5px;
+  color:var(--ink-faint);border-left:1px solid var(--line)}
+.shelf .tocbtn:active{color:var(--lamp)}
+
+/* 目录弹层。复用 .lvlist 的行样式，章名独占一行、下面一行放进度 */
+.lvlist button.here{border-color:var(--lamp);background:var(--lamp-soft)}
+.lvlist button.here .n{color:var(--lamp);font-weight:600}
+.toclist button{flex-wrap:wrap;row-gap:2px}
+.toclist .n{flex:1 0 100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toclist .ck{margin-left:auto;font-size:13px}
+.tocfront{display:block;width:100%;margin-top:10px;padding:10px;font-size:12px;
+  color:var(--ink-faint);border:1px dashed var(--line);border-radius:11px;line-height:1.6}
 
 .addbook{display:block;width:100%;margin:20px 0 6px;padding:22px;border:1.5px dashed var(--line);
   border-radius:14px;text-align:center;color:var(--ink-soft);font-size:14px;line-height:1.9}

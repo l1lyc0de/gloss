@@ -42,6 +42,38 @@ async function loadApkInfo() {
 const apkLabel = () => `${APK.version ? 'v' + APK.version + ' · ' : ''}${fmtSize(APK.bytes)}`;
 
 const bookMeta = (id) => S.books[id];
+
+/** 值不值得给这份文档露一个「目录」入口。只有一章的话，目录里就一行，是纯噪音。 */
+const hasToc = (m) => !m.chaps || m.chaps.length > 1;
+
+/**
+ * 把节按章聚合，给「按章选读」用。返回 [{t, ci, kind, si, n}]，si 是这一章第一节的序号。
+ *
+ * 老书（这个功能之前导进来的）身上没有 ci，退回按章名变化分组 —— 效果一样，
+ * 只是遇到两章重名会并成一章。为这个去做数据迁移不值当。
+ */
+function chaptersOf(sections) {
+  const out = [];
+  sections.forEach((s, si) => {
+    const ci = Number.isInteger(s.ci) ? s.ci : -1;
+    const t = s.chapter || s.title || `第 ${si + 1} 节`;
+    const last = out[out.length - 1];
+    if (last && (ci >= 0 ? last.ci === ci : last.ci < 0 && last.t === t)) { last.n++; return; }
+    out.push({ t, ci, kind: s.kind || 'body', si, n: 1 });
+  });
+  return out;
+}
+
+/**
+ * 第一节正文在哪。EPUB 里封面、版权页、致谢、目录都在正文前面，
+ * 从第 0 节打开等于让人读出版说明 —— 这是实测中最伤的一个体验问题。
+ *
+ * 找不到正文就退回 0：宁可从版权页开始，也不能打开一本空书。
+ */
+function firstBodyIdx(sections) {
+  const i = sections.findIndex((s) => (s.kind || 'body') === 'body');
+  return i > 0 ? i : 0;
+}
 const bookIds = () => Object.keys(S.books).sort((a, b) => S.books[b].addedAt - S.books[a].addedAt);
 
 async function loadBook(id) {
@@ -144,7 +176,8 @@ function renderHome() {
           <span class="bt">${esc(b.title)}</span>
           <span class="bs">${b.author ? esc(b.author) + ' · ' : ''}${KIND_LABEL[b.kind] || ''} · ${b.n} 节 · 已读 ${readN}</span>
           <span class="nbar"><i style="width:${b.n ? (readN / b.n) * 100 : 0}%"></i></span>
-        </span></button></li>`;
+        </span></button>${hasToc(b) ? `<button class="tocbtn" data-act="toc" data-id="${bid}"
+          aria-label="目录">目录</button>` : ''}</li>`;
     }
     h += `</ul>`;
   }
@@ -457,6 +490,15 @@ function renderImport() {
   for (const f of pending.flags) {
     h += `<div class="flag ${f.level === 'warn' ? 'bad' : ''}">${esc(f.text)}</div>`;
   }
+  // 跳过起点这件事必须说出来。悄悄跳过和悄悄丢弃，用户是分不出来的 ——
+  // 而这个项目在「悄悄少掉内容」上栽过一次（见 text.js 里 textWeight 的注释）
+  const skipN = pending.sections.filter((s) => s.kind === 'front').length;
+  if (skipN) {
+    const names = [...new Set(pending.sections.filter((s) => s.kind === 'front')
+      .map((s) => s.chapter))].slice(0, 3).join('、');
+    h += `<div class="flag">开头 ${skipN} 节是${names ? esc(names) + '这类' : ''}前置内容，`
+      + `会从第 ${firstBodyIdx(pending.sections) + 1} 节正文开始读。这些内容一节都没少，在目录里能翻到。</div>`;
+  }
   h += `<div class="preview">${preview.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
     <div class="askline">这几段读得通吗？<small>句子连贯、没有乱码、没有夹进页眉页码，就可以开始了</small></div>
     <button class="btn pri" data-act="accept">读得通，导入</button>
@@ -481,8 +523,11 @@ async function acceptImport() {
   S.books[id] = {
     title: p.title, author: p.author, kind: p.kind,
     n: p.sections.length, addedAt: Date.now(), lastOpen: Date.now(),
-    cur: 0, read: {}, learned: {},
+    // 从第一节正文开始，不是第 0 节。前置内容一节都没丢，只是不作为起点 ——
+    // 目录里随时能翻回去看
+    cur: firstBodyIdx(p.sections), read: {}, learned: {},
     secLen: p.sections.map((s) => s.words),
+    chaps: chaptersOf(p.sections),
   };
   save();
   CUR = { id, book, index: null };
@@ -593,6 +638,7 @@ function renderRead({ id, si }) {
       ${isDone ? '已读完 ✓' : '读完这一节 ✓'}</button>
     <div class="secnav ui">
       <button data-act="sec" data-si="${si - 1}" ${si <= 0 ? 'disabled' : ''}>‹ 上一节</button>
+      ${hasToc(m) ? `<button data-act="toc" data-id="${id}">目录</button>` : ''}
       <button data-act="sec" data-si="${si + 1}" ${si >= book.sections.length - 1 ? 'disabled' : ''}>下一节 ›</button>
     </div></div>`;
 
@@ -685,6 +731,55 @@ function refreshMarks() {
     // 取消收藏之后人名就会重新冒出虚线来
     w.classList.toggle('hard', !saved && w.dataset.hard === '1');
   });
+}
+
+// ---------- 目录（按章选读）----------
+let tocCtx = null;
+let tocOpenFront = false;
+
+async function openTocSheet(id) {
+  const m = bookMeta(id);
+  if (!m) return;
+  let chaps = m.chaps;
+  if (!chaps || !chaps.length) {
+    // 这个功能之前导进来的书，元数据里没有章目录。翻一次正文补上，之后就是现成的。
+    const c = await loadBook(id);
+    if (!c) return toast('这份文档的正文不在了，请重新导入');
+    chaps = chaptersOf(c.book.sections);
+    m.chaps = chaps;
+    save();
+  }
+  tocCtx = id;
+  const read = m.read || {};
+  const cur = Math.min(m.cur || 0, m.n - 1);
+  const body = chaps.filter((c) => c.kind !== 'front');
+  const front = chaps.filter((c) => c.kind === 'front');
+
+  const row = (c) => {
+    let done = 0;
+    for (let k = c.si; k < c.si + c.n; k++) if (read[k]) done++;
+    const here = cur >= c.si && cur < c.si + c.n;
+    const fin = done === c.n;
+    return `<li><button data-act="gosec" data-id="${id}" data-si="${c.si}" class="${here ? 'here' : ''}">
+      <span class="n">${esc(c.t)}</span>
+      <span class="h">${c.n} 节${done ? ` · 已读 ${done}/${c.n}` : ''}${here ? ' · 读到这里' : ''}</span>
+      <span class="ck">${fin ? '✓' : (here ? '●' : '')}</span></button></li>`;
+  };
+
+  let h = `<div class="lvwrap">
+    <div class="dw"><span class="w" style="font-size:20px">目录</span></div>
+    <div class="note" style="margin:8px 0 14px">${body.length} 章 · 共 ${m.n} 节。点哪一章就从哪一章开始。</div>
+    <ul class="lvlist toclist">${body.map(row).join('')}</ul>`;
+  if (front.length) {
+    h += `<button class="tocfront" data-act="tocfront">${tocOpenFront ? '收起' : '展开'}开头的
+      ${front.length} 项 · 封面、版权页、目录这些</button>`;
+    if (tocOpenFront) h += `<ul class="lvlist toclist" style="margin-top:10px">${front.map(row).join('')}</ul>`;
+  }
+  h += `<div class="dacts ui"><button data-act="closesheet">关闭</button></div></div>`;
+  $('#sheet').innerHTML = h;
+  $('#sheet').classList.add('on');
+  $('#dim').classList.add('on');
+  wire('#sheet');
 }
 
 function closeSheet() {
@@ -1069,6 +1164,9 @@ const ACTIONS = {
     if (route.si + 1 < m.n) { m.cur = route.si + 1; save(); }
   },
   closesheet: () => closeSheet(),
+  toc: (el) => openTocSheet(el.dataset.id || route.id),
+  tocfront: () => { tocOpenFront = !tocOpenFront; openTocSheet(tocCtx); },
+  gosec: (el) => { closeSheet(); openSection(el.dataset.id, +el.dataset.si); },
   say: () => speak(sheetCtx.key, 0.85),
   savew: () => toggleSave(),
   sayw: () => speak(wordQueue[wordPos].w, 0.85),
