@@ -8,8 +8,9 @@
     "lookup": "node lookup.js",
     "pdf": "node pdf.js",
     "e2e": "node e2e.js",
-    "all": "node dict.js && node formats.js && node toc.js && node lookup.js && node pdf.js && node e2e.js",
-    "toc": "node toc.js"
+    "all": "node dict.js && node formats.js && node toc.js && node download.js && node lookup.js && node pdf.js && node e2e.js",
+    "toc": "node toc.js",
+    "download": "node download.js"
   },
   "devDependencies": {
     "playwright": "^1.62.1"

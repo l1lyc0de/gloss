@@ -189,12 +189,21 @@ function renderHome() {
     <span>文件只在这台设备上读取和存储，不会上传</span></button>
     <button class="pastebtn ui" data-act="paste">或者直接粘贴一段英文</button>`;
 
-  // 只对安卓浏览器露出。iPhone 和电脑上摆一个装不了的按钮是纯粹的噪音，
-  // 那两种人在「进度」页里能找到它。
-  if (!NATIVE && APK && IS_ANDROID) {
-    h += `<a class="apkbar ui" href="/download/gloss.apk" download>
-      <b>装成安卓 App</b>
-      <span>词典一起装进去，以后读书不用开着这台电脑 · ${esc(apkLabel())}</span></a>`;
+  // 安卓 + 服务器上确实有包 → 直接给安装包，一步到位。
+  // 其余平台 → 给下载页，那儿有 iOS 的「添加到主屏幕」和电脑的说明。
+  //
+  // 原来这里只对安卓露出，别的平台什么都没有 —— 理由是「摆一个装不了的按钮是噪音」。
+  // 那个判断对安装包成立，对**下载页**不成立：iPhone 上「添加到主屏幕」是真能用的。
+  // 而且入口只挂在 UA 判断上太脆：UA 认错、包还没传上服务器、缓存时机不对，
+  // 任何一样都会让人以为「这东西没有手机版」。下载页是个固定地址，发给谁都能打开。
+  if (!NATIVE) {
+    if (APK && IS_ANDROID) {
+      h += `<a class="apkbar ui" href="/download/gloss.apk" download>
+        <b>装成安卓 App</b>
+        <span>词典一起装进去，以后读书不用开着这台电脑 · ${esc(apkLabel())}</span></a>`;
+    } else {
+      h += `<a class="getbar ui" href="/download">装到手机上<span>安卓安装包 · iPhone 添加到主屏幕</span></a>`;
+    }
   }
 
   if (!ids.length) {
@@ -1034,7 +1043,14 @@ async function renderMe() {
       <div class="note" style="margin-top:8px">${IS_ANDROID
         ? '装完之后词典在本机，读书不用再连这台服务器。'
         : '这是安卓安装包，在安卓手机上打开这个页面才装得了。'}
-        安装包里没有申请联网权限，装完就是彻底离线的。</div></div>`;
+        安装包里没有申请联网权限，装完就是彻底离线的。
+        <a href="/download">全部平台的安装方式 →</a></div></div>`;
+  }
+  // 服务器上没放包时上面整块不出现，但下载页该始终有路可去 ——
+  // 那儿还有 iPhone 和电脑的说明。
+  if (!NATIVE && !APK) {
+    h += `<div class="mrow ui"><h3>装到手机上</h3>
+      <a class="btn ghost" href="/download">看看各平台怎么装</a></div>`;
   }
 
   // App 版：显示自己是哪个版本，并给一条去看有没有新版的路。

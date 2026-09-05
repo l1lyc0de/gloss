@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>下载 Gloss</title>
+<meta name="description" content="Gloss 各平台的安装方式。">
+<link rel="icon" href="/icon.svg">
+<!-- 沿用应用本身的配色和字体，深浅色跟着系统走 -->
+<link rel="stylesheet" href="/css/app.css">
+<style>
+  /* 这一页是独立的静态页，不加载应用那套 ES module ——
+     一个下载页不该依赖 30 MB 词典和 IndexedDB 才能显示出来。 */
+  .dl{text-align:left;max-width:640px;margin:0 auto;padding:34px 20px calc(40px + env(safe-area-inset-bottom))}
+  .dl h1{font-size:30px;letter-spacing:.5px;margin-bottom:6px}
+  .dl .sub{font-size:14px;color:var(--ink-soft);line-height:1.9;margin-bottom:26px}
+  .dl-card{text-align:left;border:1px solid var(--line);border-radius:14px;background:var(--card);
+    padding:18px 18px 16px;margin-bottom:14px}
+  .dl-card h2{font-size:17px;margin-bottom:4px}
+  .dl-card .plat{font-size:11.5px;color:var(--ink-faint);letter-spacing:1px;
+    text-transform:uppercase;margin-bottom:8px}
+  .dl-card p{font-size:13.5px;color:var(--ink-soft);line-height:1.95;margin-top:8px}
+  .dl-btn{display:block;text-align:center;width:100%;margin-top:14px;padding:13px;text-align:center;
+    border-radius:11px;border:1px solid var(--lamp);color:var(--lamp);
+    background:var(--lamp-soft);font-size:15px;text-decoration:none}
+  .dl-btn.solid{background:var(--lamp);color:var(--paper);border-color:var(--lamp)}
+  .dl-btn.off{border-color:var(--line);background:transparent;color:var(--ink-faint)}
+  .dl-meta{margin-top:12px;font-size:12px;color:var(--ink-faint);line-height:1.9}
+  .dl-meta code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+    word-break:break-all;color:var(--ink-soft)}
+  .dl-steps{margin:10px 0 0 18px;font-size:13.5px;color:var(--ink-soft);line-height:2}
+  .dl-foot{margin-top:26px;font-size:12.5px;color:var(--ink-faint);line-height:2;text-align:center}
+  .dl-foot a{color:var(--ink-soft)}
+  .ui,.btn,.plat,.dl-meta{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif}
+</style>
+</head>
+<body>
+<div class="dl">
+  <h1>Gloss</h1>
+  <div class="sub">导入你手上的 EPUB / PDF / Word / 网页 / 纯文本，点任何单词立刻出中文释义。<br>
+    全程不联网、不上传 —— 文档只在你自己的设备上读取和存储。</div>
+
+  <!-- 安卓：唯一有原生安装包的平台 -->
+  <div class="dl-card" id="android">
+    <div class="plat">Android</div>
+    <h2>安卓安装包</h2>
+    <div id="apkbody"><p>正在查询最新版本…</p></div>
+  </div>
+
+  <!-- iOS：没有原生包，但「添加到主屏幕」是真的能用的，不是占位符 -->
+  <div class="dl-card">
+    <div class="plat">iPhone / iPad</div>
+    <h2>添加到主屏幕</h2>
+    <p>iOS 上还没有原生 App。但这个网页本身就能装到主屏幕，装完有自己的图标，
+      打开是整屏的，词典也会缓存到本机 —— 日常使用和一个 App 没什么差别。</p>
+    <ol class="dl-steps">
+      <li>用 <b>Safari</b> 打开本站（Chrome 装不了主屏幕图标）</li>
+      <li>点底部的分享按钮</li>
+      <li>选「添加到主屏幕」</li>
+    </ol>
+    <a class="dl-btn" href="/">打开网页版</a>
+    <p>原生 iOS 版要走 App Store，和安卓这种直接发安装包不是一回事，
+      得先有开发者账号。什么时候做还没定，不画饼。</p>
+  </div>
+
+  <!-- 电脑 / 任何浏览器 -->
+  <div class="dl-card">
+    <div class="plat">电脑 · 任意浏览器</div>
+    <h2>直接用，不用装</h2>
+    <p>浏览器里功能是齐的。第一次查词会现下载对应的词典分片，之后就缓存在本机了。</p>
+    <a class="dl-btn" href="/">打开网页版</a>
+  </div>
+
+  <div class="dl-foot">
+    <a href="/">← 回到 Gloss</a>
+  </div>
+</div>
+
+<script>
+// 安卓那张卡的内容由 /api/apk 决定。服务器上没放包时不显示下载按钮 ——
+// 不留一个点下去 404 的链接，这条规矩和应用里是一致的。
+(function () {
+  var box = document.getElementById('apkbody');
+  var isAndroid = /Android/i.test(navigator.userAgent);
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function size(n) {
+    return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB';
+  }
+  function when(s) {
+    var d = new Date(s);
+    return isNaN(d) ? '' : d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  fetch('/api/apk').then(function (r) { return r.json(); }).then(function (j) {
+    if (!j || !j.available) {
+      box.innerHTML = '<p>这台服务器上现在没有放安装包。可以先用网页版，' +
+        '功能是一样的。</p><a class="dl-btn off" href="/">打开网页版</a>';
+      return;
+    }
+    box.innerHTML =
+      '<p>词典和整个应用都打进安装包里，装完之后和这台服务器再无关系 —— ' +
+      '手机上读书不需要它开着，也不需要联网。' +
+      '<b>安装包没有申请联网权限</b>，这一点谁都能自己核实。</p>' +
+      '<a class="dl-btn solid" href="/download/gloss.apk" download>下载 v' + esc(j.version) +
+        ' · ' + size(j.bytes) + '</a>' +
+      (isAndroid ? '' :
+        '<p style="margin-top:10px">你现在不是用安卓设备打开的。这个包只能装在安卓手机上，' +
+        '换安卓手机打开这一页就能装。</p>') +
+      '<div class="dl-meta">构建于 ' + esc(when(j.builtAt)) + ' · 校验 SHA-256<br>' +
+      '<code>' + esc(j.sha256) + '</code></div>';
+  }).catch(function () {
+    box.innerHTML = '<p>查不到安装包信息，可能是服务器没在运行。' +
+      '<a href="/download/gloss.apk" download>仍然试试直接下载</a>。</p>';
+  });
+})();
+</script>
+</body>
+</html>

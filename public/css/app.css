@@ -348,3 +348,9 @@ w.lit{background:var(--lamp-soft)}
 .apkbar b{display:block;font-size:14.5px;color:var(--lamp);font-weight:600}
 .apkbar span{display:block;margin-top:3px;font-size:12.5px;color:var(--ink-faint);line-height:1.6}
 a.btn.apkdl{text-decoration:none}
+/* 非安卓平台的下载页入口。比 apkbar 安静一档：那边是「点了就装上」，
+   这边只是「去看看有哪些装法」，不该抢同样的分量。 */
+.getbar{display:block;margin-top:12px;padding:11px 14px;border-radius:12px;
+  border:1px dashed var(--line);background:transparent;text-decoration:none;
+  font-size:13.5px;color:var(--ink-soft)}
+.getbar span{display:block;margin-top:2px;font-size:11.5px;color:var(--ink-faint);line-height:1.6}

@@ -6,13 +6,16 @@
 // /api/ 的同步请求永远直连，离线时自然失败，由页面里的同步逻辑悄悄重试。
 // /download/ 的安卓安装包同样不碰：那是 11 MB 的一次性文件，
 // 塞进缓存只会把用户的配额吃掉，而且换了新包还会拿到旧的。
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = 'gloss-shell-' + VERSION;
 const DICT = 'gloss-dict-v1';   // 和 dict.js 里的 CACHE_NAME 保持一致
 const SHELL_FILES = [
-  '/', '/index.html', '/manifest.webmanifest', '/icon.svg',
+  '/', '/index.html', '/download.html', '/manifest.webmanifest', '/icon.svg',
   '/css/app.css',
-  '/js/app.js', '/js/store.js', '/js/db.js', '/js/dict.js',
+  // ⚠️ env.js 曾经漏在这张表外面。app.js 直接 import 它，漏了的话第一次访问
+  // 就断网的人会白屏 —— 模块解析失败，整个应用起不来。改这张表时对着 app.js
+  // 的 import 链数一遍。
+  '/js/app.js', '/js/env.js', '/js/store.js', '/js/db.js', '/js/dict.js',
   '/js/util.js', '/js/text.js', '/js/epub.js', '/js/pdf.js', '/js/vocab.js',
   '/js/html.js', '/js/doc.js',
   '/vendor/fflate.min.js', '/vendor/pdf.min.mjs', '/vendor/pdf.worker.min.mjs',

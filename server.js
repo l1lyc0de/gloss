@@ -226,6 +226,9 @@ const server = http.createServer((req, res) => {
     return json(res, 405, { error: 'method_not_allowed' });
   }
   if (p === '/download/' + APK_FILE) return serveApk(req, res);
+  // 下载页。/download 和 /download/ 都认 —— 这个地址是要写给人看、发给人点的，
+  // 差一个斜杠就 404 太蠢了。安装包在 /download/gloss.apk，上面那行先接走了。
+  if (p === '/download' || p === '/download/') return serveStatic(req, res, '/download.html');
   serveStatic(req, res, p === '/' ? '/index.html' : p);
 });
 
