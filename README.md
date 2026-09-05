@@ -5,7 +5,8 @@
 不只是书。挡在人前面的从来不只有原版书 —— 英文合同、说明书、论文、网页文章，一样是一屏生词。
 
 这是 [`../Gloss-产品构想.md`](../Gloss-产品构想.md) 的本地实现，对应路线图的**第 1 步**
-（管线翻成 JS，做成网页版支持任意导入）。**暂不部署到服务器**，只在本机跑。
+（管线翻成 JS，做成网页版支持任意导入）。既可以只在本机跑，也可以自己找台机器部署——
+`deploy/gloss.service` 就是给后者用的 systemd 模板（见「自建部署」）。
 
 ---
 
@@ -26,6 +27,41 @@ HOST=0.0.0.0 node gloss/server.js   # 启动时会打印手机能访问的地址
 ```bash
 python3 gloss/build/build_dict.py       # 从 ../data/stardict.db 读，约 8 秒
 ```
+
+---
+
+## 自建部署
+
+想让它在自己的机器上一直跑着（手机随时能开，不用家里那台电脑开机），
+`deploy/gloss.service` 是现成的 systemd 模板。链路是这样的：
+
+```
+Cloudflare Tunnel  →  127.0.0.1:5173  →  systemd 跑的 server.js
+```
+
+**用隧道而不是 nginx + 证书**，是因为 unit 里写死了 `HOST=127.0.0.1`：
+服务只绑本地回环，公网直连不到，也就不用开防火墙端口、不用管证书续期。
+代价是多一个 cloudflared 进程。要换成反代也行，把 `HOST` 改回 `0.0.0.0` 之外的做法自己权衡。
+
+```bash
+sudo useradd -r -s /usr/sbin/nologin gloss
+sudo mkdir -p /opt/gloss/app          # 代码放这里，unit 里的路径写死了
+sudo cp deploy/gloss.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now gloss
+curl localhost:5173/api/health        # → {"ok":true,...}
+```
+
+几个部署时才会踩到的点：
+
+- **`server.js` 认 `cf-connecting-ip`**。限流是按 IP 算的（每分钟 120 次），
+  隧道/反代后面所有请求的 `socket.remoteAddress` 都是同一个回环地址 ——
+  不认这个头的话，第二个用户就会被第一个用户的额度限流掉。
+- **unit 里 `ProtectSystem=strict`，只有 `sync-data/` 可写**。这是故意的：
+  服务除了同步码那几 KB 的 JSON，不该往磁盘上写任何东西。
+- **`sync-data/` 和 `download/` 都不在 git 里**（见 `.gitignore`）。
+  所以拉一份新代码上去，同步数据是空的、APK 下载入口不会出现 ——
+  这两个目录得单独传，且**更新代码时务必排除 `sync-data/`**，那是线上用户的真实进度。
+- **`android/` 也不要传上去**，签名密钥在里面。
 
 ---
 

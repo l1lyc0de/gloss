@@ -5,3 +5,6 @@ test/*.png
 
 # 安卓安装包：由 android/publish.sh 生成，不进版本库
 download/
+
+# 部署实况记录：含服务器地址和域名，仓库是公开的，绝不能进版本库
+*.local.md
