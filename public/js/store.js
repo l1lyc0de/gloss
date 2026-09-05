@@ -7,6 +7,7 @@
 // iOS Safari 在存储紧张时会清掉网页的 IndexedDB，这正是进度必须走服务器的理由。
 
 import { today, toast } from './util.js';
+import { NATIVE } from './env.js';
 
 const KEY = 'gloss_state_v1';
 const SYNC_KEY = 'gloss_sync_code';
@@ -112,6 +113,7 @@ export function pushNow() {
 }
 
 async function doPush() {
+  if (NATIVE) return;
   syncStatus.state = 'syncing';
   onSyncChange();
   try {
@@ -138,6 +140,7 @@ if (typeof document !== 'undefined') {
 }
 
 export async function pullSync(code, { force } = {}) {
+  if (NATIVE) return { ok: false };
   try {
     const r = await fetch('/api/sync/' + encodeURIComponent(code));
     const j = await r.json();
@@ -160,6 +163,7 @@ export function setSyncCode(code) {
 }
 
 export async function initSync() {
+  if (NATIVE) return;            // 单机版：进度只在 localStorage，靠「手动备份」那一块换设备
   const r = await pullSync(SYNC_CODE);
   if (!r.ok) syncStatus.state = 'offline';
   else if (r.found) {

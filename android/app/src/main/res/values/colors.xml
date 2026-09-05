@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 和 css/app.css 里的 paper / lamp 两个变量对齐：
+         启动那一瞬间窗口底色要是对的，否则会闪一下白。 -->
+    <color name="paper">#F6F3EC</color>
+    <color name="lamp">#B96A2B</color>
+</resources>

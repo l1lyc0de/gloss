@@ -4,6 +4,8 @@
 // 「随时能读」不该被网络状况卡住。
 // 词典分片走缓存优先：它们内容不变，而且是查词秒出的关键，能命中就绝不走网络。
 // /api/ 的同步请求永远直连，离线时自然失败，由页面里的同步逻辑悄悄重试。
+// /download/ 的安卓安装包同样不碰：那是 11 MB 的一次性文件，
+// 塞进缓存只会把用户的配额吃掉，而且换了新包还会拿到旧的。
 const VERSION = 'v2';
 const SHELL = 'gloss-shell-' + VERSION;
 const DICT = 'gloss-dict-v1';   // 和 dict.js 里的 CACHE_NAME 保持一致
@@ -32,6 +34,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api/')) return;
+  if (url.pathname.startsWith('/download/')) return;
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
 
   if (url.pathname.startsWith('/dict/')) {

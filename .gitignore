@@ -2,3 +2,6 @@
 sync-data/
 test/fixtures/
 test/*.png
+
+# 安卓安装包：由 android/publish.sh 生成，不进版本库
+download/

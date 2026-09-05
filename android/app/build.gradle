@@ -1,0 +1,61 @@
+plugins { id 'com.android.application' }
+
+// 签名信息不进仓库：口令和密钥放在 android/keystore.properties（已 gitignore）。
+// 文件不在也能构建 —— 那样 release 就是未签名的，assembleDebug 照常可用。
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
+
+android {
+    namespace 'com.lilycode.gloss'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.lilycode.gloss"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // 网页版就是这个 App 的全部内容。assets 直接指向 gloss/public，
+    // 仓库里不留第二份 30 MB 的词典 —— 改一行网页代码重新打包就带上了，
+    // 不存在「壳里的版本忘了同步」这种问题。
+    sourceSets {
+        main { assets.srcDirs = ['../../public'] }
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // 壳统共一个 Activity，没什么可缩的；assets 里的 JS 更不该被任何工具碰。
+            minifyEnabled false
+            if (keystorePropsFile.exists()) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // androidx.activity 带的 kotlin-stdlib 1.8 和传递依赖里的 kotlin-stdlib-jdk8 1.6
+    // 会撞出一屏 Duplicate class（1.8 起 jdk7/jdk8 已经并进 stdlib 了）。
+    // 用 kotlin-bom 把所有 kotlin 模块对齐到同一个版本，这一行是必需的。
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.9.24')
+
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.activity:activity:1.9.3'
+}

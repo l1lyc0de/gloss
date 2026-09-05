@@ -29,6 +29,92 @@ python3 gloss/build/build_dict.py       # 从 ../data/stardict.db 读，约 8 �
 
 ---
 
+## 安卓 APK
+
+手机上想读，不该要求家里那台电脑开着。`android/` 里是一个**手写的 WebView 壳**，
+把 `public/` 整个打进安装包 —— 装完之后这个 App 和任何服务器都没关系了。
+
+```bash
+cd gloss/android
+./gradlew assembleRelease     # → app/build/outputs/apk/release/app-release.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+或者一步到位，顺便挂到网页版上给人下：
+
+```bash
+./android/publish.sh          # 构建 + 拷到 download/ + 写版本信息
+```
+
+需要 JDK 17 和 Android SDK（platform 34 + build-tools 34.0.0），
+SDK 路径写在 `android/local.properties`。
+
+**没有引入 Capacitor / Cordova**。那套东西会把一整个 npm 工具链拖进来，
+而这个项目从头到尾零依赖，为了套个壳破例不划算。壳统共一个文件、两百行：
+
+- `WebViewAssetLoader` 把 assets 映射成 `https://appassets.androidplatform.net/`。
+  不能用 `file:///android_asset/`：网页版是 ES module，file:// 的来源是 `null`，
+  模块脚本会被 CORS 直接拦掉，localStorage / IndexedDB 在那底下也不可靠。
+- **MIME 自己报**，对着 `server.js` 里那张表抄的。`.mjs`（pdf.js 那两个文件）
+  猜不出来会退成 `text/plain`，而模块脚本 MIME 不对浏览器是拒绝执行的 ——
+  漏了这一条，PDF 导入会整个哑掉。
+- `onShowFileChooser`：WebView 对 `<input type="file">` 默认毫无反应，得自己接。
+  取消时也必须回话，漏一次那个 input 就永远卡住，之后再也导不进文档。
+- 选择器一律 `*/*`：`accept` 列表里混着 `.epub` 这类扩展名，
+  转成 MIME 之后系统选择器反而会把 EPUB 藏起来。格式由 `kindOf()` 按文件名判。
+- 返回键：页面没用 history，`goBack()` 是空的，语义在 `app.js` 的 `__glossBack` 里定义
+  —— 先关浮层，再退回首页，都没有才收到后台。
+
+`assets.srcDirs` 直接指向 `../../public`，仓库里不留第二份 30 MB 的词典；
+改一行网页代码，重新打包就带上了。
+
+### 从网页版下载 APK
+
+`android/publish.sh` 会把包放到 `download/gloss.apk`，server.js 认这个目录：
+
+- `GET /api/apk` → `{available, version, bytes, builtAt, sha256}`，没放包就是 `{available:false}`
+- `GET /download/gloss.apk` → 带 `Content-Disposition` 的安装包
+
+前端据此决定露不露入口 —— **服务器上没有包时，入口整个不出现**，
+不留一个点下去 404 的链接。露出来的地方分两处：
+
+- **首页**：只对安卓浏览器，在导入入口下面一条轻量横幅。
+  iPhone 和电脑上摆一个装不了的按钮是纯噪音。
+- **进度页**：所有平台都有（电脑上的人也得知道有这么个东西），
+  非安卓设备的提示语会说清「这是安卓包」。
+
+APK 自己内部当然不显示这个入口（`NATIVE` 判断）—— 自己下自己没有意义。
+
+> **`download/` 不能挪进 `public/`。** `public/` 会被整个打进 APK 的 assets，
+> 安装包放进去就是让它再装一份自己，体积当场翻倍。
+> `sw.js` 也跳过 `/download/`：11 MB 的一次性文件塞进缓存，
+> 只会吃掉配额，而且换了新包还会拿到旧的。
+
+### APK 和网页版的差别
+
+`js/env.js` 里一个 `NATIVE` 判断（认域名）管住了全部差异：
+
+| | 网页版 | APK |
+|---|---|---|
+| 词典 | 边查边下，可一次性下全 | **随包安装**，无「下载词典」这回事 |
+| 同步码 | 有，进度备份到 `/api/sync` | **没有**，进度只在本机，换设备走「手动备份」 |
+| Service Worker | 注册 | 不注册（资源本来就在本地） |
+| 朗读 | 系统 TTS | **没有** —— Android WebView 不实现 Web Speech API |
+
+朗读那条不是偷懒：WebView 里 `window.speechSynthesis` 根本不存在。
+喇叭按钮因此由 CSS 整个藏掉（`.no-tts`），`speak()` 也改成静默返回 ——
+复习卡「显示释义」会自动念一次，在那儿每翻一张弹一次「不支持」纯粹是噪音。
+真要朗读，得桥接原生 `TextToSpeech`，那是另一件事。
+
+安装包**不申请 `INTERNET` 权限**。词典在包里、文档由用户自己选、进度只写本机，
+权限表是「文档内容不离开这台设备」这句话唯一能被外人核实的地方。
+
+> 签名密钥在 `android/gloss-release.jks`（连同口令一起已 gitignore）。
+> **这个文件丢了就发不出更新** —— 换了签名的包 Android 会当成另一个 App，
+> 装不上去，只能先卸载，进度和生词本跟着没。请自己备份到仓库以外的地方。
+
+---
+
 ## 它现在能做什么
 
 - **导入 EPUB / PDF / Word(.docx) / 网页(.html) / 纯文本(.txt/.md)**，
@@ -76,6 +162,10 @@ gloss/
       vocab.js     扫全文词形 → 今晚这一节的 N 个词
     dict/          词典分片 + manifest.json（647 个，28.8 MB）
     vendor/        pdf.js、fflate（都已下载到本地，不走 CDN）
+  android/         安卓 APK 的壳（一个 Activity，见下）
+    app/src/main/java/com/lilycode/gloss/MainActivity.java
+    publish.sh     构建 release 包并放到 download/
+  download/        运行时生成：gloss.apk + gloss.json（不进 git）
   test/            端到端测试，见 test/README.md
   sync-data/       运行时生成，每个同步码一个 JSON（不进 git）
 ```
@@ -248,7 +338,7 @@ iOS Safari 在存储紧张时会清掉网页的 IndexedDB。加到主屏当 PWA 
 - 词典分两档（基础版 / 完整版）——见构想里的未决问题
 - 中文等非拉丁文字只是**不再被丢掉**，并没有做查词（那要分词器，是另一个问题域）
 - 旧版 `.doc`（只支持 `.docx`）、扫描件 OCR
-- 部署、Capacitor 套壳、上架——按路线图这些都在后面，**顺序不能反**
+- 上架（APK 目前是自签名、侧载安装）；iOS 那边什么都还没有
 
 词典数据来自开源项目 [ECDICT](https://github.com/skywind3000/ECDICT)（MIT 协议）。
 `collins` / `oxford` 这两个品牌标签已经在构建时丢掉了，界面上只显示中性的「常用度 ★」。

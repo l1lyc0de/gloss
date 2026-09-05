@@ -3,6 +3,7 @@
 // 只做两件事，和产品构想里写的一样：
 //   1. 托管静态文件（应用本身 + 词典分片）
 //   2. 免密同步码接口（进度和生词本那几 KB 的 JSON）
+//   3. 安卓安装包的下载入口（如果 download/ 里放了一个的话）
 //
 // 书的正文永远不经过这里。用户选的文件由浏览器的 File API 直接读，
 // 解析、清洗、存储全在本地完成 —— 服务器不碰用户的书，这是产品的前提，
@@ -22,6 +23,12 @@ const PORT = Number(process.env.PORT) || 5173;
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = path.join(__dirname, 'sync-data');
+
+// APK 故意**不**放在 public/ 下面。public/ 会被整个打进 APK 的 assets，
+// 安装包放进去就等于让它再装一份自己，体积当场翻倍。
+// 所以单开一个目录，只有下面那两条路由摸得到它。
+const DOWNLOAD_DIR = path.join(__dirname, 'download');
+const APK_FILE = 'gloss.apk';
 const MAX_BODY = 256 * 1024;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -38,6 +45,7 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.map': 'application/json; charset=utf-8',
+  '.apk': 'application/vnd.android.package-archive',
 };
 
 // 同步码只允许「大写字母数字-大写字母数字」，直接当文件名用是安全的
@@ -141,6 +149,39 @@ async function handleSync(req, res, code) {
   json(res, 405, { error: 'method_not_allowed' });
 }
 
+/* ---------- 安卓安装包 ---------- */
+
+/** 有没有可下的包，以及它是哪一版。没有就老实说没有，前端据此决定要不要露出入口。 */
+function apkMeta() {
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(DOWNLOAD_DIR, 'gloss.json'), 'utf8'));
+    const st = fs.statSync(path.join(DOWNLOAD_DIR, APK_FILE));
+    return { available: true, version: meta.version, bytes: st.size, builtAt: meta.builtAt, sha256: meta.sha256 };
+  } catch {
+    return { available: false };
+  }
+}
+
+function serveApk(req, res) {
+  const file = path.join(DOWNLOAD_DIR, APK_FILE);
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) {
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+      return res.end('还没有构建安装包，见 README 的「安卓 APK」一节');
+    }
+    res.writeHead(200, {
+      'content-type': MIME['.apk'],
+      'content-length': st.size,
+      // 带上文件名，否则有些浏览器会存成 "gloss.apk.zip" 或者干脆当网页打开
+      'content-disposition': `attachment; filename="${APK_FILE}"`,
+      // 换了新包必须立刻拿到新的，11 MB 的东西被缓存住了很难自查
+      'cache-control': 'no-cache',
+    });
+    if (req.method === 'HEAD') return res.end();
+    fs.createReadStream(file).pipe(res);
+  });
+}
+
 function serveStatic(req, res, urlPath) {
   let rel = decodeURIComponent(urlPath);
   if (rel.endsWith('/')) rel += 'index.html';
@@ -175,6 +216,7 @@ const server = http.createServer((req, res) => {
     const ip = clientIp(req);
     if (rateLimited(ip)) return json(res, 429, { error: 'rate_limited' });
     if (p === '/api/health') return json(res, 200, { ok: true, time: Date.now() });
+    if (p === '/api/apk') return json(res, 200, apkMeta());
     const m = p.match(/^\/api\/sync\/([^/]+)$/);
     if (m) return handleSync(req, res, m[1]);
     return json(res, 404, { error: 'not_found' });
@@ -183,6 +225,7 @@ const server = http.createServer((req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return json(res, 405, { error: 'method_not_allowed' });
   }
+  if (p === '/download/' + APK_FILE) return serveApk(req, res);
   serveStatic(req, res, p === '/' ? '/index.html' : p);
 });
 

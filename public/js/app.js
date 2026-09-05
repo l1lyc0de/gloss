@@ -15,6 +15,7 @@ import { parsePdf } from './pdf.js';
 import { parseTextDoc, parseHtmlDoc, parseDocx } from './doc.js';
 import { makeSections, englishRatio, WORD_RE, pickSentence } from './text.js';
 import * as vocab from './vocab.js';
+import { NATIVE } from './env.js';
 
 /* ================= 全局 ================= */
 
@@ -23,6 +24,22 @@ let pending = null;                                 // 预览闸门上待确认�
 const IVL = [0, 1, 3, 7, 14, 30, 60];               // 间隔重复的天数
 
 const KIND_LABEL = { epub: 'EPUB', pdf: 'PDF', docx: 'Word', html: '网页', text: '文本', paste: '粘贴' };
+
+/* ---------- 安卓安装包 ---------- */
+// 只有网页版需要这个入口 —— 已经装成 App 的人没理由再下一遍。
+// 服务器上没放包时 available 为 false，入口整个不出现，不给一个点了 404 的链接。
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+let APK = null;
+
+async function loadApkInfo() {
+  if (NATIVE) return;
+  try {
+    const j = await (await fetch('/api/apk')).json();
+    APK = j && j.available ? j : null;
+  } catch { APK = null; }
+}
+
+const apkLabel = () => `${APK.version ? 'v' + APK.version + ' · ' : ''}${fmtSize(APK.bytes)}`;
 
 const bookMeta = (id) => S.books[id];
 const bookIds = () => Object.keys(S.books).sort((a, b) => S.books[b].addedAt - S.books[a].addedAt);
@@ -138,6 +155,15 @@ function renderHome() {
     <span class="dnd">也可以把文件直接拖进窗口</span>
     <span>文件只在这台设备上读取和存储，不会上传</span></button>
     <button class="pastebtn ui" data-act="paste">或者直接粘贴一段英文</button>`;
+
+  // 只对安卓浏览器露出。iPhone 和电脑上摆一个装不了的按钮是纯粹的噪音，
+  // 那两种人在「进度」页里能找到它。
+  if (!NATIVE && APK && IS_ANDROID) {
+    h += `<a class="apkbar ui" href="/download/gloss.apk" download>
+      <b>装成安卓 App</b>
+      <span>词典一起装进去，以后读书不用开着这台电脑 · ${esc(apkLabel())}</span></a>`;
+  }
+
   if (!ids.length) {
     h += `<div class="note" style="margin-top:14px">
       原版书、英文合同、说明书、论文、网页文章都行 —— 挡在人前面的从来不只有书。<br>
@@ -892,9 +918,10 @@ async function renderMe() {
       <div class="stat"><b>${streak()}</b><span>连续天数</span></div>
       <div class="stat"><b>${readN}</b><span>已读小节</span></div>
       <div class="stat"><b>${Object.keys(S.vocab).length}</b><span>生词</span></div>
-    </div>
+    </div>`;
 
-    <div class="mrow ui"><h3>云端备份 · 同步码</h3>
+  // 单机版没有服务器，同步码这一整块不该出现 —— 换设备走下面的「手动备份」。
+  if (!NATIVE) h += `<div class="mrow ui"><h3>云端备份 · 同步码</h3>
       <div class="synccode"><span class="code">${esc(store.SYNC_CODE)}</span>
         <button class="copy ui" data-act="copycode">复制</button></div>
       <div class="syncstatus ${st.state === 'ok' ? 'ok' : (st.state === 'offline' ? 'err' : '')} ui">
@@ -904,9 +931,18 @@ async function renderMe() {
         <b>文档本身不在备份里</b> —— 文档重新导入一次就有，进度丢了人就不读了。</div>
       <div class="syncrestore" style="margin-top:14px">
         <input id="syncin" placeholder="输入同步码恢复，如 K7M4X-9QPTR" maxlength="11" autocapitalize="characters">
-        <button class="btn" style="margin-top:8px" data-act="restore">用这个码恢复数据</button></div></div>
+        <button class="btn" style="margin-top:8px" data-act="restore">用这个码恢复数据</button></div></div>`;
 
-    <div class="mrow ui"><h3>离线词典</h3><div class="dlbox" id="dlbox">正在检查…</div></div>
+  if (!NATIVE && APK) {
+    h += `<div class="mrow ui"><h3>安卓 App</h3>
+      <a class="btn ghost apkdl" href="/download/gloss.apk" download>下载 APK · ${esc(apkLabel())}</a>
+      <div class="note" style="margin-top:8px">${IS_ANDROID
+        ? '装完之后词典在本机，读书不用再连这台服务器。'
+        : '这是安卓安装包，在安卓手机上打开这个页面才装得了。'}
+        安装包里没有申请联网权限，装完就是彻底离线的。</div></div>`;
+  }
+
+  h += `<div class="mrow ui"><h3>离线词典</h3><div class="dlbox" id="dlbox">正在检查…</div></div>
 
     <div class="mrow ui"><h3>英语水平</h3>
       <button class="lvpick ui" data-act="level">
@@ -952,6 +988,12 @@ async function renderDictBox() {
   if (!box) return;
   try {
     const man = await dict.loadManifest();
+    if (NATIVE) {
+      // 词典随安装包一起装进来了，既没得下载也没得清除。
+      box.innerHTML = `<div class="t">${man.words.toLocaleString()} 词 · ${fmtSize(man.bytes)}</div>
+        <div class="s">词典已随 App 装在本机，查词不联网、不下载、不占额外空间。</div>`;
+      return;
+    }
     const have = await dict.downloadedBytes();
     const pct = Math.round((have / man.bytes) * 100);
     box.innerHTML = `<div class="t">${man.words.toLocaleString()} 词 · 共 ${fmtSize(man.bytes)}</div>
@@ -961,7 +1003,7 @@ async function renderDictBox() {
       ${have > 0 ? `<button class="btn" style="margin-top:8px" data-act="cleardict">清除已下载的词典</button>` : ''}`;
     wire('#dlbox');
   } catch {
-    box.textContent = '词典清单读不到，请确认服务器在运行。';
+    box.textContent = NATIVE ? '词典读不出来，安装包可能不完整。' : '词典清单读不到，请确认服务器在运行。';
   }
 }
 
@@ -1150,8 +1192,21 @@ dict.setLevel(S.settings.level);
 store.onSync(() => { if (route.view === 'me') renderMe(); });
 go('home');
 
-dict.loadManifest().catch(() => toast('词典清单加载失败，请确认服务器在运行'));
+// 硬件返回键：页面没用 history，goBack() 是空的，所以「返回」的语义在这里定义 ——
+// 先关浮层，再退回首页，两样都没有才让壳把 App 收到后台。
+if (NATIVE) {
+  window.__glossBack = () => {
+    if ($('#sheet').classList.contains('on')) { closeSheet(); return true; }
+    if (route.view !== 'home') { go('home'); return true; }
+    return false;
+  };
+}
+
+loadApkInfo().then(() => { if (route.view === 'home') renderHome(); });
+
+dict.loadManifest().catch(() => toast(NATIVE ? '词典加载失败，安装包可能不完整' : '词典清单加载失败，请确认服务器在运行'));
 store.initSync();
-if ('serviceWorker' in navigator) {
+// 单机版的资源本来就在本地，Service Worker 只剩添乱（还会拦截 assets 请求）。
+if (!NATIVE && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }

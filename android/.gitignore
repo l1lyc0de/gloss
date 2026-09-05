@@ -1,0 +1,13 @@
+# 机器相关，不进仓库：每台机器的 SDK 路径不一样
+local.properties
+
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+
+# 签名密钥永远不进仓库
+*.jks
+*.keystore
+keystore.properties

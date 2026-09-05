@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 和 public/icon.svg 同一个图形：gloss 本义就是写在原文词句旁边的那一小条释义。
+     原图 192 见方，这里按 0.42 缩放居中放进自适应图标的安全区。
+     每条「释义」用圆头描边画成胶囊，省掉一堆圆角矩形的 path。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path android:pathData="M32.79,37.64 L59.25,37.64"
+        android:strokeColor="#FBF5EC" android:strokeWidth="3.78" android:strokeLineCap="round" />
+    <path android:pathData="M32.79,48.56 L69.33,48.56"
+        android:strokeColor="#FBF5EC" android:strokeWidth="3.78" android:strokeLineCap="round" />
+    <path android:pathData="M32.79,59.48 L53.37,59.48"
+        android:strokeColor="#FBF5EC" android:strokeWidth="3.78" android:strokeLineCap="round" />
+    <path android:pathData="M32.79,70.40 L62.61,70.40"
+        android:strokeColor="#FBF5EC" android:strokeWidth="3.78" android:strokeLineCap="round"
+        android:strokeAlpha="0.45" />
+
+    <path android:pathData="M62.82,55.07 L77.10,55.07"
+        android:strokeColor="#2A1B0E" android:strokeWidth="2.94" android:strokeLineCap="round"
+        android:strokeAlpha="0.55" />
+</vector>

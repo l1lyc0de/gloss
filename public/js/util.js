@@ -63,9 +63,15 @@ function pickVoice() {
 if ('speechSynthesis' in window) {
   pickVoice();
   speechSynthesis.onvoiceschanged = pickVoice;
+} else {
+  // Android WebView 根本没有 Web Speech API。喇叭按钮由 CSS 一并藏掉 ——
+  // 摆一个按下去只会道歉的按钮，比没有这个按钮更差。
+  document.documentElement.classList.add('no-tts');
 }
 export function speak(text, rate) {
-  if (!('speechSynthesis' in window)) return toast('此浏览器不支持朗读');
+  // 不支持就安静地什么都不做：按钮已经不在了，而复习卡「显示释义」会自动念一次，
+  // 在那儿每翻一张弹一次「不支持」纯粹是噪音。
+  if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(String(text).replace(/\s+/g, ' '));
   u.lang = 'en-US';

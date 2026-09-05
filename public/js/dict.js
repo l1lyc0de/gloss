@@ -6,6 +6,7 @@
 // 「点一下秒出」这个核心体验就是靠这个保住的。
 
 import { pMap } from './util.js';
+import { NATIVE } from './env.js';
 
 const DICT_BASE = '/dict/';
 const CACHE_NAME = 'gloss-dict-v1';
@@ -16,6 +17,9 @@ let manifest = null;
 let cacheP = null;
 
 function cache() {
+  // 单机版里 647 个分片就躺在安装包内，读一次是本地磁盘 IO；
+  // 再往 Cache Storage 抄一份只是白占 30 MB，所以那边直接不缓存。
+  if (NATIVE) return Promise.resolve(null);
   if (!cacheP) cacheP = ('caches' in window) ? caches.open(CACHE_NAME) : Promise.resolve(null);
   return cacheP;
 }
