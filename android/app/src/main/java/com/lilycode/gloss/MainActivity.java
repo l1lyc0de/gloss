@@ -13,10 +13,16 @@ package com.lilycode.gloss;
 
 import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.ActionMode;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -94,7 +100,7 @@ public class MainActivity extends ComponentActivity {
                 .addPathHandler("/", new AssetsHandler())
                 .build();
 
-        web = new WebView(this);
+        web = new QuietWebView(this);
         setContentView(web);
 
         WebSettings s = web.getSettings();
@@ -179,6 +185,75 @@ public class MainActivity extends ComponentActivity {
         web.addJavascriptInterface(new NativeBridge(), "GlossNative");
 
         if (savedInstanceState == null) web.loadUrl(INDEX);
+    }
+
+    /* ---------- 选中正文时不弹系统菜单 ----------
+     *
+     * 这不是嫌它丑。这个 App 的整个卖点就是「不用走选中 → 菜单 → 翻译那三步」，
+     * 而系统那个 Define / Translate / Share 菜单是原生 View，永远盖在 WebView 上面：
+     * 留着它，等于在最核心的界面上摆了一个「点这里去别处翻译」的入口，
+     * 还会把网页里那条划线/笔记的工具条挡住。真机上一试就露馅，浏览器里测不出来。
+     *
+     * 为什么不在 Activity 的 onActionModeStarted 里 clear()：那儿清完之后
+     * Chromium 还会再走一遍 onPrepareActionMode 把菜单填回去 —— 试过，清了等于没清。
+     * 稳的挂点是把 WebView 递上来的 callback 包一层，create/prepare 之后都清一遍。
+     *
+     * 只清菜单、不拦 ActionMode 本身 —— 拦掉的话选择手柄会一起没了，
+     * 就没法拖着调整选区，那比系统菜单碍事严重得多。
+     *
+     * 包装成 Callback2 并转发 onGetContentRect：浮动菜单和选择手柄靠它定位。
+     */
+    private static class QuietWebView extends WebView {
+        QuietWebView(Context c) {
+            super(c);
+        }
+
+        @Override
+        public ActionMode startActionMode(ActionMode.Callback cb) {
+            return super.startActionMode(quiet(cb));
+        }
+
+        @Override
+        public ActionMode startActionMode(ActionMode.Callback cb, int type) {
+            return super.startActionMode(quiet(cb), type);
+        }
+
+        private static ActionMode.Callback quiet(final ActionMode.Callback cb) {
+            return new ActionMode.Callback2() {
+                @Override
+                public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                    cb.onCreateActionMode(mode, menu);
+                    menu.clear();
+                    return true;
+                }
+
+                @Override
+                public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                    cb.onPrepareActionMode(mode, menu);
+                    menu.clear();
+                    return true;
+                }
+
+                @Override
+                public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+                    return cb.onActionItemClicked(mode, item);
+                }
+
+                @Override
+                public void onDestroyActionMode(ActionMode mode) {
+                    cb.onDestroyActionMode(mode);
+                }
+
+                @Override
+                public void onGetContentRect(ActionMode mode, View view, Rect out) {
+                    if (cb instanceof ActionMode.Callback2) {
+                        ((ActionMode.Callback2) cb).onGetContentRect(mode, view, out);
+                    } else {
+                        super.onGetContentRect(mode, view, out);
+                    }
+                }
+            };
+        }
     }
 
     /**

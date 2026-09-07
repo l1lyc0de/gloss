@@ -3,14 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>下载 Gloss</title>
-<meta name="description" content="Gloss 各平台的安装方式。">
+<title>下载 Gloss · 点一下单词，释义直接出来</title>
+<meta name="description" content="点一下单词，中文释义直接出来 —— 不用选中，不用再点一次翻译。Gloss 各平台的安装方式。">
 <link rel="icon" href="/icon.svg">
 <!-- 沿用应用本身的配色和字体，深浅色跟着系统走 -->
 <link rel="stylesheet" href="/css/app.css">
 <style>
-  /* 这一页是独立的静态页，不加载应用那套 ES module ——
-     一个下载页不该依赖 30 MB 词典和 IndexedDB 才能显示出来。 */
+  /* 这一页是独立的静态页。除了演示那一小块（demo.js，自带六条词条），
+     不加载应用其余任何东西 —— 一个下载页不该依赖 30 MB 词典和 IndexedDB
+     才能显示出来。演示的配色和排版直接吃 app.css。 */
   .dl{text-align:left;max-width:640px;margin:0 auto;padding:34px 20px calc(40px + env(safe-area-inset-bottom))}
   .dl h1{font-size:30px;letter-spacing:.5px;margin-bottom:6px}
   .dl .sub{font-size:14px;color:var(--ink-soft);line-height:1.9;margin-bottom:26px}
@@ -32,13 +33,27 @@
   .dl-foot{margin-top:26px;font-size:12.5px;color:var(--ink-faint);line-height:2;text-align:center}
   .dl-foot a{color:var(--ink-soft)}
   .ui,.btn,.plat,.dl-meta{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif}
+  .sub .lead{display:block;font-size:16px;color:var(--ink);margin-bottom:4px}
 </style>
 </head>
 <body>
 <div class="dl">
   <h1>Gloss</h1>
-  <div class="sub">导入你手上的 EPUB / PDF / Word / 网页 / 纯文本，点任何单词立刻出中文释义。<br>
-    全程不联网、不上传 —— 文档只在你自己的设备上读取和存储。</div>
+  <div class="sub"><b class="lead">点一下单词，释义直接出来。</b>
+    不用先选中，不用再点一次「翻译」—— 手指落下的同一下，释义就在下面了。<br>
+    你自己的 EPUB / PDF / Word / 网页 / 纯文本都能导进来，全程不联网、不上传。</div>
+
+  <!-- 与其形容「快」，不如让人当场点一下。放在所有下载入口之前：
+       先证明这东西值得装，再谈怎么装。 -->
+  <div class="demo" id="demo">
+    <div class="demo-hd">点一下带虚线的词 ↓</div>
+    <p class="demo-en"></p>
+    <div class="demo-card"><span class="idle">释义会出现在这里 —— 就这一下，没有第二步。</span></div>
+    <div class="demo-foot">
+      同一件事，别处通常要三下：<span class="slow">按住选中 → 等菜单弹出来 → 点「翻译」</span>。<br>
+      这里是<b>一下</b>，而且没走网络 —— 词典整本在你机器上。
+    </div>
+  </div>
 
   <!-- 安卓：唯一有原生安装包的平台 -->
   <div class="dl-card" id="android">
@@ -75,6 +90,13 @@
     <a href="/">← 回到 Gloss</a>
   </div>
 </div>
+
+<script type="module">
+// 演示的数据和渲染在 /js/demo.js —— 首页空态用的是同一份，
+// 免得两边的句子或释义各写各的。
+import { wireDemo } from '/js/demo.js';
+wireDemo(document.getElementById('demo'));
+</script>
 
 <script>
 // 安卓那张卡的内容由 /api/apk 决定。服务器上没放包时不显示下载按钮 ——

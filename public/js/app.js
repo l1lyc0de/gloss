@@ -16,6 +16,8 @@ import { parseTextDoc, parseHtmlDoc, parseDocx } from './doc.js';
 import { makeSections, englishRatio, WORD_RE, pickSentence } from './text.js';
 import * as vocab from './vocab.js';
 import { NATIVE, NATIVE_VERSION, UPDATE_URL } from './env.js';
+import { wireDemo } from './demo.js';
+import * as hl from './hl.js';
 
 /* ================= 全局 ================= */
 
@@ -112,11 +114,13 @@ async function rebuildIndex(book, msg) {
 const RENDER = {
   home: renderHome, import: renderImport, read: renderRead,
   words: renderWords, vocab: renderVocab, review: renderReview, me: renderMe,
+  hl: renderHl,
 };
 
 let route = { view: 'home' };
 
 function go(view, params = {}) {
+  if (route.view === 'read' && view !== 'read') clearSelTool();
   route = { view, ...params };
   $$('.view').forEach((v) => v.classList.remove('on'));
   $('#view-' + view).classList.add('on');
@@ -134,8 +138,10 @@ $$('#tabbar button').forEach((b) => (b.onclick = () => go(b.dataset.tab)));
 function renderHome() {
   updateBadges();
   const ids = bookIds();
+  // 副标题只够放一句话，那这句必须是最该说的那件事：点一下就出释义。
+  // 「离线阅读器」是它是什么，「点一下」才是它凭什么 —— 后者排前面。
   let h = `<div class="brand"><div class="zh-t">Gloss</div>
-    <div class="en-t">自己带文档的离线阅读器 · 点词即出释义</div></div>`;
+    <div class="en-t">点一下单词，释义直接出来 · 自己带文档的离线阅读器</div></div>`;
   h += `<div class="streakline ui"><b>${streak()}</b><span>连续天数</span>
     <span style="margin-left:auto">生词 ${Object.keys(S.vocab).length} 个</span></div>`;
 
@@ -182,6 +188,18 @@ function renderHome() {
     h += `</ul>`;
   }
 
+  // 一份文档都还没有的人，此刻对这个应用一无所知 —— 而它最值得知道的那件事
+  // （点一下就出释义）恰好三秒能自证。所以空态先把这句演示出来，再谈导入。
+  // 导过书的人不再看到：他早就点过了，那时候这块就成了占地方的广告。
+  if (!ids.length) {
+    h += `<div class="demo" id="homedemo">
+      <div class="demo-hd">点一下带虚线的词 ↓</div>
+      <p class="demo-en"></p>
+      <div class="demo-card"><span class="idle">释义会出现在这里 —— 就这一下，没有第二步。</span></div>
+      <div class="demo-foot">读你自己的文档时也是这样：<b>点哪个词，哪个词的释义就出来</b>，
+        不用先选中、不用再点一次「翻译」，也不走网络。</div></div>`;
+  }
+
   h += `<button class="addbook ui" data-act="add">
     <b>＋ 导入文档</b>
     EPUB、Word、网页、纯文本，或者单栏有文字层的 PDF
@@ -212,6 +230,8 @@ function renderHome() {
       扫描件 PDF（整页是图片、选不中文字）取不出文字，导入会被直接拒绝。</div>`;
   }
   $('#view-home').innerHTML = h;
+  const demo = $('#homedemo');
+  if (demo) wireDemo(demo);
   wire('#view-home');
 }
 
@@ -589,26 +609,72 @@ async function ensureSectionDict(sec) {
   if (more.size) await dict.ensureShards(more);
 }
 
-function tokenize(text) {
-  let out = '', last = 0, m;
+/**
+ * 一段正文 → HTML。
+ *
+ * hls 是这一段上的划线 [{gid, s, e, note}]，按起点排好、互不交叠
+ * （不交叠是入口那边保证的：选区压到已有的线上时给的是「去掉划线」，不是再划一条）。
+ * 边界都吸附过整词（hl.snap），所以 <mark> 永远落在 <w> 外面 ——
+ * 划过线的词照样点得动，这条不能破。
+ */
+function tokenize(text, hls = []) {
+  // 先把词切出来，再按「词 / 边界」两种事件顺序拼 —— 一遍扫，边界不会插进 <w> 里
+  const toks = [];
+  let m;
   WORD_RE.lastIndex = 0;
   while ((m = WORD_RE.exec(text))) {
-    out += esc(text.slice(last, m.index));
-    const r = dict.get(m[0]);
-    if (!r) out += esc(m[0]);
-    else {
+    const raw = m[0];
+    const r = dict.get(raw);
+    let html = esc(raw);
+    if (r) {
       const key = r.lemmaEntry ? r.lemma : r.word;
       // 句中的大写基本就是人名地名。词典里认不出的名字（Adler、Ichiro）
       // 也能靠这一条挡掉 —— 标一堆名字只会让虚线下划线失去意义。
       const before = text.slice(Math.max(0, m.index - 3), m.index);
-      const midSentenceCap = /^[A-Z]/.test(m[0]) && m.index > 0 && !/[.!?…"'’”)\]]\s*$/.test(before);
+      const midSentenceCap = /^[A-Z]/.test(raw) && m.index > 0 && !/[.!?…"'’”)\]]\s*$/.test(before);
       const hard = S.settings.markHard && !midSentenceCap && dict.isHard(r);
       const cls = S.vocab[key] ? 'saved' : (hard ? 'hard' : '');
-      out += `<w class="${cls}"${hard ? ' data-hard="1"' : ''} data-w="${esc(m[0])}">${esc(m[0])}</w>`;
+      html = `<w class="${cls}"${hard ? ' data-hard="1"' : ''} data-w="${esc(raw)}">${esc(raw)}</w>`;
     }
-    last = m.index + m[0].length;
+    toks.push({ s: m.index, e: m.index + raw.length, html });
   }
-  return out + esc(text.slice(last));
+
+  const opens = new Map();   // 偏移 -> 从这里开始的划线
+  const closes = new Map();  // 偏移 -> 在这里结束的划线（只用来数要闭几个）
+  for (const h of hls) {
+    if (!opens.has(h.s)) opens.set(h.s, []);
+    opens.get(h.s).push(h);
+    closes.set(h.e, (closes.get(h.e) || 0) + 1);
+  }
+  const bounds = [...new Set(hls.flatMap((h) => [h.s, h.e]))].sort((a, b) => a - b);
+
+  let out = '', pos = 0, bi = 0;
+  const tags = (at) => {
+    let t = '</mark>'.repeat(closes.get(at) || 0);
+    for (const h of opens.get(at) || []) {
+      t += `<mark class="hl${h.note ? ' noted' : ''}" data-act="hl" data-gid="${esc(h.gid)}">`;
+    }
+    return t;
+  };
+  // 把纯文本推进到 to，中途该开该闭的划线在这里插进去
+  const flush = (to) => {
+    while (bi < bounds.length && bounds[bi] <= to) {
+      out += esc(text.slice(pos, bounds[bi]));
+      pos = bounds[bi];
+      out += tags(pos);
+      bi++;
+    }
+    out += esc(text.slice(pos, to));
+    pos = to;
+  };
+
+  for (const t of toks) {
+    flush(t.s);
+    out += t.html;
+    pos = t.e;
+  }
+  flush(text.length);
+  return out;
 }
 
 async function openSection(id, si, opts = {}) {
@@ -635,15 +701,21 @@ function renderRead({ id, si }) {
   const m = bookMeta(id);
   const isDone = !!(m.read && m.read[si]);
 
+  // 「摘录」只在这本书真的划过线之后才出现。头上这一条本来就窄，
+  // 一个空列表的入口不值得一直占着位置 —— 想划线的人是从正文里选中开始的，
+  // 不是从这个按钮开始的。
+  const hlN = hl.count(id);
   let h = `<div class="rhead ui">
     <button class="back" data-act="home">‹</button>
     <span class="where">${esc(book.title)} · ${si + 1}/${book.sections.length}</span>
+    ${hlN ? `<button class="act" data-act="hllist" data-id="${id}">摘录 ${hlN}</button>` : ''}
     <button class="act" data-act="secwords" data-id="${id}" data-si="${si}">过词</button></div>
     <div class="rbody">
     <div class="sec-eyebrow ui">第 ${si + 1} 节 · ${sec.words} 词</div>
     <h1 class="sec-t">${esc(sec.title)}</h1>`;
+  const marks = hl.bySection(id, si);
   sec.paras.forEach((p, k) => {
-    h += `<div class="para" id="p${k}"><div class="en">${tokenize(p)}</div>
+    h += `<div class="para" id="p${k}"><div class="en">${tokenize(p, marks[k] || [])}</div>
       <div class="ptools ui"><button class="tts" data-k="${k}">🔊 朗读</button></div></div>`;
   });
   h += `<button class="donebtn ui ${isDone ? 'done' : ''}" data-act="done">
@@ -665,12 +737,31 @@ function renderRead({ id, si }) {
   v.innerHTML = h;
   $$('.tts', v).forEach((b) => (b.onclick = () => speak(sec.paras[b.dataset.k], 0.9)));
   $$('w', v).forEach((w) => (w.onclick = (ev) => {
+    // 词的优先级高于划线：划过线的词点下去仍然先出释义。
+    // stopPropagation 就是干这个的 —— 外面那层 <mark> 的处理不会跟着触发。
     ev.stopPropagation();
     $$('w.lit').forEach((x) => x.classList.remove('lit'));
     w.classList.add('lit');
     openSheet(w.dataset.w, w.closest('.para').querySelector('.en').textContent, id, si);
   }));
   wire('#view-read');
+
+  // 从摘录列表点进来的：滚到那一段，并让那条线亮一下。
+  // 不亮一下的话，一节里划过好几条时人得自己找 —— 跳过来却不知道跳到哪儿了。
+  if (route.gid) {
+    const g = hl.get(route.gid);
+    const k = g && g.parts.length ? g.parts[0].p : null;
+    if (k != null) {
+      requestAnimationFrame(() => {
+        const para = $('#view-read #p' + k);
+        if (para) para.scrollIntoView({ block: 'center' });
+        $$(`#view-read mark[data-gid="${route.gid}"]`).forEach((el) => {
+          el.classList.add('flash');
+          setTimeout(() => el.classList.remove('flash'), 1400);
+        });
+      });
+    }
+  }
 }
 
 /* ---------- 浮动的节间导航 ----------
@@ -721,6 +812,217 @@ function showFloatNav() {
 
 // 监听器只挂一次。挂在每次 renderRead 里的话，读十节就叠十个。
 window.addEventListener('scroll', showFloatNav, { passive: true });
+
+/* ---------- 划线：选中之后浮出来的那一条 ----------
+ *
+ * 手势用系统自带的文本选择（长按拖），不自造一套 —— 自造的必然比系统的难用。
+ * 选完了才浮出工具条，而不是一进正文就摆一排按钮：不划线的人一次都不该看见它。
+ *
+ * 为什么盯 selectionchange 而不是 pointerup：手机上长按选中之后手指抬起来
+ * 常常不给 pointerup（系统的放大镜把事件吃了），只盯抬手会有相当一部分选区
+ * 永远等不到工具条。
+ *
+ * 选区在这里立刻换算成「段序号 + 字符偏移」存进 selCtx。按钮按下去时再去读
+ * window.getSelection() 是不行的 —— 那时候选区可能已经被系统菜单或者点击本身清掉了。
+ */
+
+let selCtx = null;      // {id, si, parts:[{p,s,e,t}], over:[gid], rect}
+let selT = null;
+
+function clearSelTool() {
+  selCtx = null;
+  const el = $('#seltool');
+  el.classList.remove('on');
+  el.innerHTML = '';
+}
+
+/** 选区 → 每个段落上吸附好的一段。跨段选中是一条摘录的多个 part，不是多条摘录。 */
+function readSelection() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  const paras = $$('#view-read .para').filter((p) => range.intersectsNode(p));
+  if (!paras.length) return null;
+
+  const parts = [];
+  for (const para of paras) {
+    const en = $('.en', para);
+    if (!en) continue;
+    const text = en.textContent;
+    // 这一段和选区的交集：段落整体被夹在中间时就是一整段
+    const r = range.cloneRange();
+    const whole = document.createRange();
+    whole.selectNodeContents(en);
+    if (r.compareBoundaryPoints(Range.START_TO_START, whole) < 0) r.setStart(whole.startContainer, whole.startOffset);
+    if (r.compareBoundaryPoints(Range.END_TO_END, whole) > 0) r.setEnd(whole.endContainer, whole.endOffset);
+    const a = hl.offsetIn(en, r.startContainer, r.startOffset);
+    const b = hl.offsetIn(en, r.endContainer, r.endOffset);
+    const sn = hl.snap(text, a, b);
+    if (sn) parts.push({ p: +para.id.slice(1), s: sn.s, e: sn.e, t: text.slice(sn.s, sn.e) });
+  }
+  if (!parts.length) return null;
+
+  const over = [];
+  for (const part of parts) {
+    for (const gid of hl.overlapping(route.id, route.si, part.p, part.s, part.e)) {
+      if (!over.includes(gid)) over.push(gid);
+    }
+  }
+  return { id: route.id, si: route.si, parts, over, rect: range.getBoundingClientRect() };
+}
+
+function showSelTool() {
+  if (route.view !== 'read') return clearSelTool();
+  const ctx = readSelection();
+  if (!ctx) return clearSelTool();
+  selCtx = ctx;
+
+  // 压在已有的划线上时不给「划线」，给的是针对那一条的操作 ——
+  // 允许叠着划，正文里就会出现深浅不一的层，而且「取消」到底取消哪一条说不清。
+  const el = $('#seltool');
+  el.innerHTML = ctx.over.length
+    ? `<button data-act="selnote">${hl.get(ctx.over[0]) && hl.get(ctx.over[0]).note ? '改笔记' : '写笔记'}</button>
+       <button data-act="selunhl">去掉划线</button>
+       <button data-act="selsay">朗读</button>
+       <button data-act="selcopy">复制</button>`
+    : `<button data-act="selhl">划线</button>
+       <button data-act="selnote">写笔记</button>
+       <button data-act="selsay">朗读</button>
+       <button data-act="selcopy">复制</button>`;
+  wire('#seltool');
+
+  // 按下去不能让选区没了 —— 没了就等于按钮按了个空
+  $$('button', el).forEach((b) => (b.onpointerdown = (ev) => ev.preventDefault()));
+
+  el.classList.add('on');
+  const r = ctx.rect;
+  const w = el.offsetWidth || 240;
+  const h = el.offsetHeight || 40;
+  const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+
+  // **默认浮在选区下方**，不是上方 —— 这一条是在真机上改过来的。
+  //
+  // 系统自己的选择菜单（Android 的 Define/Copy/Share、iOS 的拷贝/查询）
+  // 习惯占选区**上方**，而且它是原生控件，永远盖在网页内容上面：
+  // 摆在上方就等于摆了个看不见的工具条。APK 里那个菜单已经被壳拦掉了
+  // （MainActivity 的 setCustomSelectionActionModeCallback），
+  // 但网页版拦不掉，所以位置上先躲开。
+  const below = r.bottom + 10;
+  const top = below + h + 8 <= window.innerHeight
+    ? below
+    : Math.max(8, r.top - h - 10);
+  el.style.left = left + 'px';
+  el.style.top = top + 'px';
+}
+
+document.addEventListener('selectionchange', () => {
+  if (route.view !== 'read') return;
+  clearTimeout(selT);
+  // 拖的过程中不要一边拖一边跳，等手停下来
+  selT = setTimeout(showSelTool, 180);
+});
+window.addEventListener('scroll', () => { if (selCtx) clearSelTool(); }, { passive: true });
+
+/** 重画一段正文。加/删划线之后只动这一段，整节重画会把滚动位置和朗读都打断。 */
+function repaintPara(k) {
+  const para = $('#view-read #p' + k);
+  if (!para || !CUR.book) return;
+  const sec = CUR.book.sections[route.si];
+  const en = $('.en', para);
+  en.innerHTML = tokenize(sec.paras[k], hl.bySection(route.id, route.si)[k] || []);
+  $$('w', en).forEach((w) => (w.onclick = (ev) => {
+    ev.stopPropagation();
+    $$('w.lit').forEach((x) => x.classList.remove('lit'));
+    w.classList.add('lit');
+    openSheet(w.dataset.w, en.textContent, route.id, route.si);
+  }));
+  wire('#view-read #p' + k);
+}
+
+/** 存下当前选区，返回 gid。已经压在别的划线上时返回那一条，不新建。 */
+function commitSelection() {
+  if (!selCtx) return null;
+  if (selCtx.over.length) return selCtx.over[0];
+  const gid = hl.add(selCtx.id, selCtx.si, selCtx.parts);
+  const ps = selCtx.parts.map((x) => x.p);
+  clearSelTool();
+  window.getSelection().removeAllRanges();
+  ps.forEach(repaintPara);
+  refreshHlEntry();
+  return gid;
+}
+
+/** 头上那个「摘录 n」是随手划随手变的，不值得为它整节重画。 */
+function refreshHlEntry() {
+  const head = $('#view-read .rhead');
+  if (!head) return;
+  const n = hl.count(route.id);
+  let btn = $('[data-act="hllist"]', head);
+  if (!n) { if (btn) btn.remove(); return; }
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.className = 'act';
+    btn.dataset.act = 'hllist';
+    btn.dataset.id = route.id;
+    head.insertBefore(btn, $('[data-act="secwords"]', head));
+    wire('#view-read .rhead');
+  }
+  btn.textContent = '摘录 ' + n;
+}
+
+/* ---------- 笔记卡片 ---------- */
+
+let noteGid = null;
+
+function openNoteSheet(gid) {
+  const g = hl.get(gid);
+  if (!g) return;
+  noteGid = gid;
+  const txt = hl.textOf(g);
+  $('#sheet').innerHTML = `<div class="notewrap">
+    <div class="dw"><span class="w" style="font-size:17px">摘录</span></div>
+    <div class="hlquote">${esc(txt)}</div>
+    <textarea id="notebox" maxlength="${hl.NOTE_MAX}"
+      placeholder="写点什么 —— 没看懂的地方、想到的事、要查的东西">${esc(g.note || '')}</textarea>
+    <div class="dacts ui">
+      <button class="rm" data-act="delhl">删掉这条</button>
+      <button class="pri" data-act="savenote">保存</button>
+    </div></div>`;
+  $('#sheet').classList.add('on');
+  $('#dim').classList.add('on');
+  hideFloatNav();
+  wire('#sheet');
+  setTimeout(() => { const b = $('#notebox'); if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }, 60);
+}
+
+/* ---------- 摘录列表 ---------- */
+
+function renderHl({ id }) {
+  const items = hl.list(id);
+  const title = id && S.books[id] ? S.books[id].title : '全部摘录';
+  let h = `<div class="pagehead ui"><h2>摘录</h2><small>${items.length} 条</small></div>
+    <div class="note" style="margin:0 0 14px">${esc(title)}</div>`;
+  if (!items.length) {
+    h += `<div class="empty ui"><div class="g">摘</div>还没有划过线<br>
+      读的时候按住选中一段，就能划线、写笔记</div>`;
+  } else {
+    h += `<ul class="hllist">`;
+    for (const it of items) {
+      const b = S.books[it.book];
+      h += `<li><button data-act="gohl" data-gid="${esc(it.gid)}">
+        <span class="q">${esc(hl.textOf(it))}</span>
+        ${it.note ? `<span class="n">${esc(it.note)}</span>` : ''}
+        <span class="m">${esc(b ? b.title : '文档已删除')} · 第 ${it.sec + 1} 节 · ${relTime(it.ts)}</span>
+      </button><button class="del ui" data-act="delhlrow" data-gid="${esc(it.gid)}"
+        aria-label="删除">×</button></li>`;
+    }
+    h += `</ul>`;
+  }
+  h += `<div class="dacts ui" style="margin-top:18px">
+    <button data-act="hlback">返回</button></div>`;
+  $('#view-hl').innerHTML = h;
+  wire('#view-hl');
+}
 
 function markSectionDone(id, si) {
   const m = bookMeta(id);
@@ -1085,6 +1387,16 @@ async function renderMe() {
       <div class="stat"><b>${Object.keys(S.vocab).length}</b><span>生词</span></div>
     </div>`;
 
+  // 摘录是第二类收集物（第一类是生词）。入口放这儿而不是单开一个 tab ——
+  // 「功能可以多，选择不能多」，底下四个 tab 一个都不该再加。
+  // 一条都没有时也显示，但说清它是什么、怎么来的，而不是给一个空列表的按钮。
+  const hlN = hl.count();
+  h += `<div class="mrow ui"><h3>摘录</h3>
+    ${hlN
+      ? `<button class="btn" data-act="hllist">看看划过的 ${hlN} 条</button>`
+      : `<div class="note">读的时候按住选中一段，可以划线、写笔记。划过的都会收在这里。</div>`}
+    </div>`;
+
   // 单机版没有服务器，同步码这一整块不该出现 —— 换设备走下面的「手动备份」。
   if (!NATIVE) h += `<div class="mrow ui"><h3>云端备份 · 同步码</h3>
       <div class="synccode"><span class="code">${esc(store.SYNC_CODE)}</span>
@@ -1258,6 +1570,71 @@ const ACTIONS = {
     if (route.si + 1 < m.n) { m.cur = route.si + 1; save(); }
   },
   closesheet: () => closeSheet(),
+
+  /* ---- 划线 / 笔记 ---- */
+  // 正文里点在划线上（但不是点在某个词上 —— 词有自己的处理，且会 stopPropagation）
+  hl: (el) => openNoteSheet(el.dataset.gid),
+  selhl: () => { if (commitSelection()) toast('已划线'); },
+  selnote: () => { const gid = commitSelection(); if (gid) openNoteSheet(gid); },
+  selunhl: () => {
+    if (!selCtx || !selCtx.over.length) return;
+    // 先把要重画的段落记下来 —— 删完之后就查不到它占过哪几段了
+    const ps = new Set();
+    for (const gid of selCtx.over) {
+      const g = hl.get(gid);
+      if (g) g.parts.forEach((x) => ps.add(x.p));
+      hl.remove(gid);
+    }
+    clearSelTool();
+    window.getSelection().removeAllRanges();
+    ps.forEach(repaintPara);
+    refreshHlEntry();
+    toast('已去掉划线');
+  },
+  selsay: () => { if (selCtx) speak(selCtx.parts.map((x) => x.t).join(' '), 0.9); },
+  selcopy: () => {
+    if (!selCtx) return;
+    copyText(selCtx.parts.map((x) => x.t).join(' '));
+    clearSelTool();
+  },
+  savenote: () => {
+    const g = hl.get(noteGid);
+    hl.setNote(noteGid, $('#notebox').value.trim());
+    closeSheet();
+    if (g && route.view === 'read') g.parts.forEach((x) => repaintPara(x.p));
+    toast('已保存');
+  },
+  delhl: () => {
+    const g = hl.get(noteGid);
+    if (!g) return closeSheet();
+    if (!confirm('删掉这条摘录？笔记也会一起没。')) return;
+    const ps = g.parts.map((x) => x.p);
+    hl.remove(noteGid);
+    closeSheet();
+    if (route.view === 'read') { ps.forEach(repaintPara); refreshHlEntry(); }
+    else renderHl(route);
+    toast('已删除');
+  },
+  // 记一下从哪儿进来的：读书时进来的要能回到那一节，从「进度」进来的回「进度」。
+  // 一律回首页的话，翻两条摘录就得重新找回原来那一节。
+  hllist: (el) => go('hl', { id: el.dataset.id, from: route.view }),
+  gohl: (el) => {
+    const gid = el.dataset.gid;
+    const g = hl.get(gid);
+    if (!g) return;
+    if (!S.books[g.book]) return toast('这份文档已经删掉了，重新导入同一个文件就能回到这里');
+    openSection(g.book, g.sec, { gid });
+  },
+  delhlrow: (el) => {
+    if (!confirm('删掉这条摘录？笔记也会一起没。')) return;
+    hl.remove(el.dataset.gid);
+    renderHl(route);
+  },
+  hlback: () => {
+    if (route.from === 'read' && route.id && S.books[route.id]) {
+      openSection(route.id, Math.min(S.books[route.id].cur || 0, S.books[route.id].n - 1));
+    } else go(route.from && route.from !== 'read' ? route.from : 'home');
+  },
   toc: (el) => openTocSheet(el.dataset.id || route.id),
   tocfront: () => { tocOpenFront = !tocOpenFront; openTocSheet(tocCtx); },
   gosec: (el) => { closeSheet(); openSection(el.dataset.id, +el.dataset.si); },

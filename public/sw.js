@@ -17,7 +17,7 @@ const SHELL_FILES = [
   // 的 import 链数一遍。
   '/js/app.js', '/js/env.js', '/js/store.js', '/js/db.js', '/js/dict.js',
   '/js/util.js', '/js/text.js', '/js/epub.js', '/js/pdf.js', '/js/vocab.js',
-  '/js/html.js', '/js/doc.js',
+  '/js/html.js', '/js/doc.js', '/js/demo.js', '/js/hl.js',
   '/vendor/fflate.min.js', '/vendor/pdf.min.mjs', '/vendor/pdf.worker.min.mjs',
 ];
 

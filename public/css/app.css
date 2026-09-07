@@ -3,6 +3,7 @@
 :root{
   --paper:#F6F3EC; --ink:#232C3D; --ink-soft:#5A6478; --ink-faint:#9AA3B5;
   --lamp:#B96A2B; --lamp-soft:#F0E2D0; --card:#FDFBF6; --line:#E3DDD0;
+  --hl:#F6E7C6;
   --mark:#6E7A93; --sheet:#FFFFFF; --ok:#5E7D5A; --warn:#B4533A;
   --fs:18px;
 }
@@ -10,6 +11,7 @@
   :root{
     --paper:#151A24; --ink:#E4E0D5; --ink-soft:#A7ADBD; --ink-faint:#5E6577;
     --lamp:#D98E4A; --lamp-soft:#3A2E20; --card:#1D2330; --line:#2A3140;
+    --hl:#40331E;
     --mark:#8A94A8; --sheet:#222938; --ok:#7FA07A; --warn:#D2705A;
   }
 }
@@ -192,9 +194,78 @@ h1.sec-t{font-size:23px;line-height:1.35;font-weight:600;margin:8px 0 22px}
 .ptools{margin-top:4px}
 .ptools button{font-size:11px;color:var(--ink-faint);padding:2px 9px;border:1px solid var(--line);border-radius:11px}
 w{cursor:pointer;border-radius:2px}
+/* ---- 「点一下就出释义」的现场演示 ----
+   下载页和首页空态共用这一套（两边都加载 app.css）。句子和释义卡刻意长得
+   和读书界面一模一样 —— w / w.hard / w.lit 就是上面那三条，没有另开一份。 */
+.demo{border:1px solid var(--line);border-radius:14px;background:var(--card);
+  padding:16px 18px 14px;margin:18px 0 14px;text-align:left}
+.demo-hd{font-size:11.5px;color:var(--ink-faint);letter-spacing:1px;margin-bottom:10px;
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif}
+.demo-en{font-size:17px;line-height:1.85;margin:0 0 12px}
+.demo-card{border:1px dashed var(--line);border-radius:11px;padding:12px 13px;
+  min-height:74px;display:flex;flex-direction:column;justify-content:center}
+.demo-card.on{border-style:solid;border-color:var(--lamp-soft);background:var(--lamp-soft)}
+.demo-card .idle{font-size:12.5px;color:var(--ink-faint)}
+.demo-card .dw{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.demo-card .dw .w{font-size:21px;font-weight:600;color:var(--ink)}
+.demo-card .dw .ph{font-size:13px;color:var(--ink-soft)}
+.demo-card .dtags{margin:7px 0 0;display:flex;gap:5px;flex-wrap:wrap}
+.demo-card .dtags i{font-style:normal;font-size:10.5px;padding:2px 8px;border-radius:9px;
+  background:var(--card);color:var(--lamp);
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif}
+.demo-card .dt{margin-top:8px;font-size:14px;line-height:1.7;white-space:pre-line;color:var(--ink)}
+.demo-card .db{margin-top:7px;font-size:11.5px;color:var(--ink-soft)}
+.demo-foot{margin-top:12px;font-size:12.5px;color:var(--ink-soft);line-height:1.95;
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif}
+.demo-foot b{color:var(--ink)}
+.demo-foot .slow{color:var(--ink-faint)}
+
 w.hard{border-bottom:1px dotted var(--ink-faint)}
 w.saved{border-bottom:1.5px solid var(--lamp);color:var(--lamp)}
 w.lit{background:var(--lamp-soft)}
+/* ---- 划线与笔记 ----
+   底纹用得很浅，压在正文底下而不是盖在正文上：这是一本要连读几十分钟的书，
+   划过的地方不该比没划的更抢眼。虚线下划线（生词）和这一层底色是两套标记，
+   叠在一起也读得出来 —— 一个在字底下，一个在字后面。 */
+mark.hl{background:var(--hl);color:inherit;border-radius:2px;
+  padding:.06em 0;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+/* 有笔记的多一道底线和一个笔尖。笔尖是 ::after 画的，不进 textContent ——
+   查词卡片要拿 .en 的纯文本当例句，多一个字符就会混进例句里。 */
+mark.hl.noted{box-shadow:inset 0 -1.5px 0 var(--lamp)}
+mark.hl.noted::after{content:'✎';font-size:.72em;color:var(--lamp);
+  vertical-align:.35em;margin:0 .12em 0 .18em}
+mark.hl.flash{animation:hlflash 1.4s ease}
+@keyframes hlflash{0%,60%{background:var(--lamp-soft)}100%{background:var(--hl)}}
+
+/* 选中之后浮出来的一条。fixed 定位，位置由 JS 按选区算。 */
+#seltool{position:fixed;z-index:60;display:none;gap:2px;padding:4px;
+  background:var(--sheet);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 6px 24px rgba(0,0,0,.18)}
+#seltool.on{display:flex}
+#seltool button{font-size:12.5px;padding:7px 11px;border-radius:9px;color:var(--ink);white-space:nowrap}
+#seltool button:active{background:var(--lamp-soft);color:var(--lamp)}
+
+.notewrap .hlquote{margin:10px 0 12px;padding:10px 12px;border-left:2px solid var(--lamp);
+  background:var(--hl);border-radius:0 8px 8px 0;font-size:14px;line-height:1.75;
+  max-height:30vh;overflow-y:auto}
+.notewrap textarea{width:100%;min-height:110px;padding:12px;border:1px solid var(--line);
+  border-radius:11px;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.7;
+  resize:vertical;font-family:inherit}
+
+.hllist{list-style:none}
+.hllist li{display:flex;align-items:flex-start;gap:4px;border-bottom:1px solid var(--line)}
+.hllist li>button:first-child{flex:1;text-align:left;padding:14px 2px}
+/* 摘录本身是书里的一段，就该按书的样子排 —— 列表项是 <button>，
+   而 button 在上面被划到无衬线那一档里去了，这里要抢回来 */
+.hllist .q{display:block;font-size:14.5px;line-height:1.7;
+  font-family:Georgia,'Times New Roman','Songti SC','Noto Serif SC',serif}
+.hllist .n{display:block;margin-top:7px;padding-left:9px;border-left:2px solid var(--lamp);
+  font-size:13px;line-height:1.75;color:var(--ink-soft);white-space:pre-wrap}
+.hllist .m{display:block;margin-top:8px;font-size:11.5px;color:var(--ink-faint);
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif}
+.hllist .del{padding:14px 8px;color:var(--ink-faint);font-size:17px;align-self:center}
+.hllist .del:active{color:var(--lamp)}
+
 .donebtn{display:block;width:100%;margin:34px 0 10px;padding:14px;text-align:center;
   border:1.5px solid var(--lamp);color:var(--lamp);border-radius:12px;font-size:15px}
 .donebtn.done{background:var(--lamp);color:#FBF5EC}

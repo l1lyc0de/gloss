@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>Gloss · 自己带文档的离线阅读器</title>
+<title>Gloss · 点一下单词，释义直接出来</title>
+<meta name="description" content="点一下单词，中文释义直接出来 —— 不用先选中，不用再点一次「翻译」。导入你自己的 EPUB / PDF / Word / 网页 / 纯文本，全程不联网、不上传。">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#B96A2B">
 <meta name="mobile-web-app-capable" content="yes">
@@ -24,6 +25,7 @@
   <div class="view" id="view-vocab"></div>
   <div class="view" id="view-review"></div>
   <div class="view" id="view-me"></div>
+  <div class="view" id="view-hl"></div>
 </div>
 
 <nav id="tabbar" class="ui">
@@ -32,6 +34,9 @@
   <button data-tab="review"><span class="g">忆</span>复习<span class="badge" id="rbadge" hidden></span></button>
   <button data-tab="me"><span class="g">我</span>进度</button>
 </nav>
+
+<!-- 正文里选中一段之后浮出来的那一条。空着的时候不占位，也不接事件 -->
+<div id="seltool" class="ui"></div>
 
 <div id="dim"></div>
 <div id="sheet"></div>

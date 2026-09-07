@@ -19,6 +19,7 @@ function blank() {
     updatedAt: 0,
     books: {},     // id -> {title, author, kind, n, words, addedAt, cur, read:{}, learned:{}}
     vocab: {},     // word -> {ts, due, lvl, src, book, sec}
+    hl: {},        // 摘录 gid -> {book, sec, parts:[{p,s,e,t}], note, ts}（见 hl.js）
     days: {},      // 'YYYY-MM-DD' -> 1
     nrev: 0,
     settings: { fs: 18, markHard: true, level: 'cet4', levelSet: false },

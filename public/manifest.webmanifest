@@ -1,5 +1,6 @@
 {
-  "name": "Gloss · 自己带书的离线阅读器",
+  "name": "Gloss · 点一下单词，释义直接出来",
+  "description": "点一下单词，中文释义直接出来 —— 不用先选中，不用再点一次「翻译」。导入你自己的 EPUB / PDF / Word / 网页 / 纯文本，全程不联网、不上传。",
   "short_name": "Gloss",
   "start_url": "/",
   "display": "standalone",
