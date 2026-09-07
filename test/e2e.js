@@ -58,8 +58,8 @@ const log = (...a) => console.log(...a);
   log('  书内 Top: ' + stats.top.join(' '));
   log('  例句样本：' + String(stats.sampleEg).slice(0, 120));
 
-  // 主按钮 → 过词
-  await page.click('.tonight');
+  // 可选的读前过词入口
+  await page.click('[data-act="onlywords"]');
   await page.waitForSelector('#view-words.on .wcard', { timeout: 60000 });
   const card = await page.evaluate(() => ({
     w: document.querySelector('.wcard .w').textContent,
@@ -149,6 +149,7 @@ const log = (...a) => console.log(...a);
 
   // 进度页 + 同步
   await page.click('[data-tab="me"]');
+  await page.getByText('离线词典', { exact: true }).click();
   await page.waitForSelector('#view-me.on #dlbox .t', { timeout: 30000 });
   const me = await page.evaluate(() => ({
     stats: [...document.querySelectorAll('.stat')].map((n) => n.textContent.replace(/\s+/g, ' ').trim()),

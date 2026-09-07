@@ -109,8 +109,9 @@ public class MainActivity extends ComponentActivity {
         s.setDatabaseEnabled(true);        // IndexedDB：文档正文
         s.setUseWideViewPort(true);        // 让 index.html 里的 viewport meta 说了算
         s.setLoadWithOverviewMode(false);
-        s.setSupportZoom(false);
-        s.setBuiltInZoomControls(false);
+        s.setSupportZoom(true);
+        s.setBuiltInZoomControls(true);
+        s.setDisplayZoomControls(false);
         s.setTextZoom(100);                // 字号由 App 里的 A− / A＋ 管，不叠加系统缩放
         s.setAllowFileAccess(false);       // 一切都走 assets handler，不需要 file://
         s.setAllowContentAccess(false);

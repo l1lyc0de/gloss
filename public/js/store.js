@@ -22,7 +22,7 @@ function blank() {
     hl: {},        // 摘录 gid -> {book, sec, parts:[{p,s,e,t}], note, ts}（见 hl.js）
     days: {},      // 'YYYY-MM-DD' -> 1
     nrev: 0,
-    settings: { fs: 18, markHard: true, level: 'cet4', levelSet: false },
+    settings: { fs: 18, lineHeight: 1.75, theme: 'system', markHard: true, level: 'cet4', levelSet: false },
   };
 }
 

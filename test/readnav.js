@@ -71,7 +71,7 @@ const shown = (p) => p.evaluate(() => {
   await p.mouse.wheel(0, 200);
   await p.waitForTimeout(250);
   (await shown(p)) ? fail('卡片开着时一滚又冒出来了') : ok('卡片开着时滚动也不出现');
-  await p.click('#dim');
+  await p.click('[aria-label="关闭释义"]');
   await p.waitForTimeout(200);
 
   // 7. 浮层和提示条都停在屏幕底部，位置必须错开

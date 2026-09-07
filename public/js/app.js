@@ -2,8 +2,7 @@
 //
 // 贯穿全篇的第一原则：**降低每次打开的阻力。**
 // 真正的敌人不是「看不懂单词」，是半途而废。所以功能可以多，选择不能多 ——
-// 首页只有一个主按钮，App 自己知道今晚该干什么（过词 → 读这一节），
-// 「只想过词」「直接读」放在旁边当次要入口，不摆成一道选择题。
+// 首页主按钮直接继续阅读，读前过词作为可选入口。
 
 import { $, $$, esc, toast, busy, speak, copyText, relTime, fmtSize, yieldFrame } from './util.js';
 import * as store from './store.js';
@@ -120,6 +119,8 @@ const RENDER = {
 let route = { view: 'home' };
 
 function go(view, params = {}) {
+  closeSheet();
+  applyReadingSettings();
   if (route.view === 'read' && view !== 'read') clearSelTool();
   route = { view, ...params };
   $$('.view').forEach((v) => v.classList.remove('on'));
@@ -142,9 +143,6 @@ function renderHome() {
   // 「离线阅读器」是它是什么，「点一下」才是它凭什么 —— 后者排前面。
   let h = `<div class="brand"><div class="zh-t">Gloss</div>
     <div class="en-t">点一下单词，释义直接出来 · 自己带文档的离线阅读器</div></div>`;
-  h += `<div class="streakline ui"><b>${streak()}</b><span>连续天数</span>
-    <span style="margin-left:auto">生词 ${Object.keys(S.vocab).length} 个</span></div>`;
-
   if (ids.length) {
     // 今晚读哪份：最近打开过的那份。这里不给选择，选择留给下面的列表。
     const id = ids.slice().sort((a, b) => (S.books[b].lastOpen || 0) - (S.books[a].lastOpen || 0))[0];
@@ -153,17 +151,15 @@ function renderHome() {
     const wordN = m.secWords ? (m.secWords[si] || 0) : 0;
     const mins = vocab.estimateMinutes(wordN, m.secLen ? m.secLen[si] || 900 : 900);
     const done = m.learned && m.learned[si];
-    h += `<button class="tonight ui" data-act="tonight" data-id="${id}">
-      <div class="eyebrow">今晚</div>
+    h += `<button class="tonight ui" data-act="onlyread" data-id="${id}">
+      <div class="eyebrow">继续阅读 →</div>
       <div class="t">${esc(m.title)} · 第 ${si + 1} 节</div>
       <div class="zt">${m.secWords
         ? (done ? `词已过完 · 约 ${mins} 分钟读完这一节` : `${wordN} 个新词 · 约 ${mins} 分钟`)
         : '继续阅读'}</div></button>`;
-    // 这两个不是一对平级选项：读才是目的，过词只是助跑。等宽并排会让人以为
-    // 得在两者之间挑一个，所以「直接读」占主位，「只想过词」缩成一个小入口。
     h += `<div class="subacts ui">
-      <button class="go" data-act="onlyread" data-id="${id}">直接读这一节</button>
-      <button class="quiet" data-act="onlywords" data-id="${id}" ${m.secWords ? '' : 'disabled'}>只想过词</button></div>`;
+      <span>连续阅读 ${streak()} 天 · 生词 ${Object.keys(S.vocab).length} 个</span>
+      <button class="quiet" data-act="onlywords" data-id="${id}" ${m.secWords ? '' : 'disabled'}>读前过词</button></div>`;
 
     // 生词是按某一档水平挑的。默认那档不可能对所有人都准，所以在他第一次
     // 看到词数的地方说一句 —— 只说一次，选过之后不再出现。
@@ -195,17 +191,15 @@ function renderHome() {
     h += `<div class="demo" id="homedemo">
       <div class="demo-hd">点一下带虚线的词 ↓</div>
       <p class="demo-en"></p>
-      <div class="demo-card"><span class="idle">释义会出现在这里 —— 就这一下，没有第二步。</span></div>
-      <div class="demo-foot">读你自己的文档时也是这样：<b>点哪个词，哪个词的释义就出来</b>，
-        不用先选中、不用再点一次「翻译」，也不走网络。</div></div>`;
+      <div class="demo-card"><span class="idle">点一个词，在这里看中文释义。</span></div></div>`;
   }
 
-  h += `<button class="addbook ui" data-act="add">
-    <b>＋ 导入文档</b>
-    EPUB、Word、网页、纯文本，或者单栏有文字层的 PDF
-    <span class="dnd">也可以把文件直接拖进窗口</span>
-    <span>文件只在这台设备上读取和存储，不会上传</span></button>
-    <button class="pastebtn ui" data-act="paste">或者直接粘贴一段英文</button>`;
+  h += `<button class="addbook ui ${ids.length ? '' : 'primary'}" data-act="add">
+    <b>${ids.length ? '＋ 导入文档' : '＋ 导入文档，开始读'}</b></button>
+    <div class="import-hint ui">支持 EPUB、Word、网页、文本和文字版 PDF
+      <span class="dnd">也可以把文件拖进窗口</span>
+      <span>文档保存在本机，不会上传</span></div>
+    <button class="pastebtn ui" data-act="paste">粘贴一段英文</button>`;
 
   // 安卓 + 服务器上确实有包 → 直接给安装包，一步到位。
   // 其余平台 → 给下载页，那儿有 iOS 的「添加到主屏幕」和电脑的说明。
@@ -226,8 +220,7 @@ function renderHome() {
 
   if (!ids.length) {
     h += `<div class="note" style="margin-top:14px">
-      原版书、英文合同、说明书、论文、网页文章都行 —— 挡在人前面的从来不只有书。<br>
-      扫描件 PDF（整页是图片、选不中文字）取不出文字，导入会被直接拒绝。</div>`;
+      PDF 需为单栏、可选中文字的文档，暂不支持扫描件。</div>`;
   }
   $('#view-home').innerHTML = h;
   const demo = $('#homedemo');
@@ -327,8 +320,7 @@ function openPasteSheet() {
       <button data-act="closesheet">取消</button>
       <button class="pri" data-act="pastego">下一步</button>
     </div></div>`;
-  $('#sheet').classList.add('on');
-  $('#dim').classList.add('on');
+  showSheet();
   wire('#sheet');
   setTimeout(() => { const b = $('#pastebox'); if (b) b.focus(); }, 60);
 }
@@ -374,8 +366,7 @@ function openLevelSheet() {
   }
   h += `</ul><div class="dacts ui"><button data-act="closesheet">先不改</button></div></div>`;
   $('#sheet').innerHTML = h;
-  $('#sheet').classList.add('on');
-  $('#dim').classList.add('on');
+  showSheet();
   wire('#sheet');
 }
 
@@ -508,8 +499,7 @@ function renderImport() {
 
   let h = `<div class="impwrap">
     <h2>先看一眼抽出来的效果</h2>
-    <div class="note">这一步只有人眼能做。程序能判断的只有「有没有文字层」，
-      至于句子连不连贯、有没有乱码，你扫两眼就知道了。</div>
+    <div class="note">检查文字是否完整、句子是否连贯，有没有乱码或夹杂的页码。</div>
     <div class="impmeta">
       <div class="t">${esc(pending.title)}</div>
       <div class="s">${pending.author ? esc(pending.author) + ' · ' : ''}${esc(pending.label || '')} ·
@@ -706,10 +696,11 @@ function renderRead({ id, si }) {
   // 不是从这个按钮开始的。
   const hlN = hl.count(id);
   let h = `<div class="rhead ui">
-    <button class="back" data-act="home">‹</button>
+    <button class="back" data-act="home" aria-label="返回文档">‹</button>
     <span class="where">${esc(book.title)} · ${si + 1}/${book.sections.length}</span>
     ${hlN ? `<button class="act" data-act="hllist" data-id="${id}">摘录 ${hlN}</button>` : ''}
-    <button class="act" data-act="secwords" data-id="${id}" data-si="${si}">过词</button></div>
+    <button class="act" data-act="secwords" data-id="${id}" data-si="${si}">过词</button>
+    <button class="act" data-act="readsettings" aria-label="阅读设置">Aa</button></div>
     <div class="rbody">
     <div class="sec-eyebrow ui">第 ${si + 1} 节 · ${sec.words} 词</div>
     <h1 class="sec-t">${esc(sec.title)}</h1>`;
@@ -912,7 +903,10 @@ function showSelTool() {
     ? below
     : Math.max(8, r.top - h - 10);
   el.style.left = left + 'px';
-  el.style.top = top + 'px';
+  // 跨段选区可能延伸到屏幕外，工具条仍须留在可点击区域。
+  const bottom = window.innerHeight - ($('#sheet').classList.contains('on')
+    ? $('#sheet').offsetHeight : $('#tabbar').offsetHeight);
+  el.style.top = Math.max(8, Math.min(top, bottom - h - 8)) + 'px';
 }
 
 document.addEventListener('selectionchange', () => {
@@ -988,8 +982,7 @@ function openNoteSheet(gid) {
       <button class="rm" data-act="delhl">删掉这条</button>
       <button class="pri" data-act="savenote">保存</button>
     </div></div>`;
-  $('#sheet').classList.add('on');
-  $('#dim').classList.add('on');
+  showSheet();
   hideFloatNav();
   wire('#sheet');
   setTimeout(() => { const b = $('#notebox'); if (b) { b.focus(); b.setSelectionRange(b.value.length, b.value.length); } }, 60);
@@ -1046,14 +1039,16 @@ function openSheet(raw, contextText, bookId, si) {
   const main = r.lemmaEntry || r.entry;
   sheetCtx = { key, src: pickSentence(contextText || '', raw), bookId, si };
 
-  let h = `<div class="dw"><span class="w">${esc(key)}</span>`;
+  let h = `<button class="sheet-close ui" data-act="closesheet" aria-label="关闭释义">×</button>
+    <div class="dw"><span class="w">${esc(key)}</span>`;
   if (main.p) h += `<span class="ph">/${esc(main.p)}/</span>`;
   h += `</div>`;
   const tags = dict.tagsOf(r);
   const st = dict.stars(main);
   // 常用度只显示 ★ —— 数值来自开源词库，但星级标准是别人的商标，不打品牌名
+  let extra = '';
   if (tags.length || st) {
-    h += `<div class="dtags">${tags.map((t) => `<i>${esc(t)}</i>`).join('')}
+    extra += `<div class="dtags">${tags.map((t) => `<i>${esc(t)}</i>`).join('')}
       ${st ? `<i>常用度 ${st}</i>` : ''}</div>`;
   }
   h += `<div class="dtrans">${esc(main.t || '')}</div>`;
@@ -1061,15 +1056,15 @@ function openSheet(raw, contextText, bookId, si) {
     h += `<div class="dbase">原文形态 ${esc(raw)}${
       r.entry.t && r.entry !== main ? '：' + esc(dict.firstLine(r.entry.t)) : ''}</div>`;
   }
-  if (sheetCtx.src) h += `<div class="dsrc">“${esc(sheetCtx.src)}”</div>`;
+  if (sheetCtx.src) extra += `<div class="dsrc">“${esc(sheetCtx.src)}”</div>`;
+  if (extra) h += `<details class="word-details ui"><summary>例句与词汇信息</summary>${extra}</details>`;
   const saved = !!S.vocab[key];
   h += `<div class="dacts ui">
     <button data-act="say">🔊 发音</button>
     <button class="${saved ? 'rm' : 'pri'}" data-act="savew">${saved ? '移出生词本' : '＋ 收入生词本'}</button>
     </div>`;
   $('#sheet').innerHTML = h;
-  $('#sheet').classList.add('on');
-  $('#dim').classList.add('on');
+  showSheet(route.view === 'read');
   hideFloatNav();   // 卡片和浮动导航都在屏幕下方，叠在一起会打架
   wire('#sheet');
 }
@@ -1148,18 +1143,52 @@ async function openTocSheet(id) {
   }
   h += `<div class="dacts ui"><button data-act="closesheet">关闭</button></div></div>`;
   $('#sheet').innerHTML = h;
-  $('#sheet').classList.add('on');
-  $('#dim').classList.add('on');
+  showSheet();
   wire('#sheet');
 }
 
+function showSheet(readLookup = false) {
+  const sheet = $('#sheet');
+  sheet.classList.toggle('reading-lookup', readLookup);
+  sheet.classList.add('on');
+  sheet.scrollTop = 0;
+  $('#dim').classList.toggle('on', !readLookup);
+  document.body.classList.toggle('lookup-open', readLookup);
+  updateLookupSpace();
+  if (readLookup) {
+    const word = $('#view-read w.lit');
+    const top = window.innerHeight - sheet.offsetHeight;
+    if (word && word.getBoundingClientRect().bottom > top - 16) {
+      window.scrollBy(0, word.getBoundingClientRect().bottom - top + 24);
+    }
+  }
+}
+
+// 为末尾正文留出卡片所占的空间，长释义或旋转屏幕后也能滚到最后一个词。
+function updateLookupSpace() {
+  if (document.body.classList.contains('lookup-open')) {
+    document.body.style.setProperty('--lookup-height', $('#sheet').offsetHeight + 'px');
+  }
+}
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(updateLookupSpace).observe($('#sheet'));
+}
+window.addEventListener('resize', updateLookupSpace);
+
 function closeSheet() {
-  $('#sheet').classList.remove('on');
+  $('#sheet').classList.remove('on', 'reading-lookup');
+  document.body.classList.remove('lookup-open');
   clearTimeout(fnavT);
   $('#dim').classList.remove('on');
   $$('w.lit').forEach((x) => x.classList.remove('lit'));
 }
 $('#dim').onclick = closeSheet;
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#sheet').classList.contains('on')) {
+    e.preventDefault();
+    closeSheet();
+  }
+});
 
 /* ================= 过词 ================= */
 
@@ -1374,7 +1403,56 @@ function grade(g) {
 
 /* ================= 进度 / 设置 ================= */
 
+function applyReadingSettings() {
+  const s = S.settings;
+  s.fs = Math.min(24, Math.max(14, Number(s.fs) || 18));
+  s.lineHeight = [1.5, 1.75, 2].includes(Number(s.lineHeight)) ? Number(s.lineHeight) : 1.75;
+  s.theme = ['system', 'light', 'dark'].includes(s.theme) ? s.theme : 'system';
+  const root = document.documentElement;
+  root.style.setProperty('--fs', s.fs + 'px');
+  root.style.setProperty('--reading-line', s.lineHeight);
+  root.dataset.theme = s.theme;
+}
+
+function openReadingSettings() {
+  closeSheet();
+  $('#sheet').innerHTML = `<div class="reading-settings ui">
+    <button class="sheet-close" data-act="closesheet" aria-label="关闭阅读设置">×</button>
+    <h2>阅读设置</h2>
+    <div class="setting-row"><span>字号</span><div class="fsbtns">
+      <button data-act="fs" data-d="-1" aria-label="减小字号">A−</button>
+      <output id="fsv">${S.settings.fs}px</output>
+      <button data-act="fs" data-d="1" aria-label="增大字号">A＋</button></div></div>
+    <div class="setting-row"><span>行距</span><div class="segments" role="group" aria-label="行距">
+      ${[[1.5, '紧凑'], [1.75, '适中'], [2, '宽松']].map(([n, t]) =>
+        `<button data-act="lineheight" data-value="${n}" aria-pressed="${S.settings.lineHeight === n}">${t}</button>`).join('')}
+    </div></div>
+    <div class="setting-row"><span>主题</span><div class="segments" role="group" aria-label="主题">
+      ${[['system', '跟随系统'], ['light', '暖纸'], ['dark', '深色']].map(([n, t]) =>
+        `<button data-act="theme" data-value="${n}" aria-pressed="${S.settings.theme === n}">${t}</button>`).join('')}
+    </div></div>
+    <p class="reader-preview">A quiet moment, a page at a time.</p>
+    <p class="note">调整即时生效，并自动保存。</p></div>`;
+  showSheet(route.view === 'read');
+  hideFloatNav();
+  wire('#sheet');
+  updateReadingControls();
+}
+
+function updateReadingControls() {
+  const fs = $('#fsv');
+  if (fs) fs.textContent = S.settings.fs + 'px';
+  $$('[data-act="fs"]').forEach(b => { b.disabled = +b.dataset.d < 0 ? S.settings.fs <= 14 : S.settings.fs >= 24; });
+  $$('[data-act="lineheight"], [data-act="theme"]').forEach(b => {
+    const value = b.dataset.act === 'theme' ? S.settings.theme : String(S.settings.lineHeight);
+    b.setAttribute('aria-pressed', String(value === b.dataset.value));
+  });
+  updateLookupSpace();
+}
+
 async function renderMe() {
+  const expanded = $$('#view-me details[open] > summary').map(el => el.textContent);
+  const drafts = ['syncin', 'iobox'].map(id => [id, $('#' + id)?.value]);
   updateBadges();
   const readN = Object.values(S.books).reduce((n, b) => n + Object.keys(b.read || {}).length, 0);
   const st = store.syncStatus;
@@ -1385,7 +1463,14 @@ async function renderMe() {
       <div class="stat"><b>${streak()}</b><span>连续天数</span></div>
       <div class="stat"><b>${readN}</b><span>已读小节</span></div>
       <div class="stat"><b>${Object.keys(S.vocab).length}</b><span>生词</span></div>
-    </div>`;
+    </div>
+    <div class="mrow ui"><button class="settings-link" data-act="readsettings">
+      <span>阅读设置</span><span>字号 · 行距 · 主题 ›</span></button></div>
+    <div class="mrow ui"><h3>英语水平</h3>
+      <button class="lvpick ui" data-act="level">
+        <span class="n">${esc(dict.level().name)}</span>
+        <span class="h">${esc(dict.level().hint)}</span><span class="ck">更改</span></button>
+      <div class="note" style="margin-top:8px">用于标记正文生词，并挑选读前要学的词。</div></div>`;
 
   // 摘录是第二类收集物（第一类是生词）。入口放这儿而不是单开一个 tab ——
   // 「功能可以多，选择不能多」，底下四个 tab 一个都不该再加。
@@ -1398,26 +1483,22 @@ async function renderMe() {
     </div>`;
 
   // 单机版没有服务器，同步码这一整块不该出现 —— 换设备走下面的「手动备份」。
-  if (!NATIVE) h += `<div class="mrow ui"><h3>云端备份 · 同步码</h3>
+  if (!NATIVE) h += `<details class="mrow settings-group ui"><summary>云端备份与恢复</summary>
       <div class="synccode"><span class="code">${esc(store.SYNC_CODE)}</span>
         <button class="copy ui" data-act="copycode">复制</button></div>
       <div class="syncstatus ${st.state === 'ok' ? 'ok' : (st.state === 'offline' ? 'err' : '')} ui">
         <span class="dot"></span>${label}</div>
-      <div class="note" style="margin-top:8px">这串码是这台设备的备份钥匙，不用记密码。
-        换设备或清过浏览器数据后，在下面输入它就能取回进度和生词本。
-        <b>文档本身不在备份里</b> —— 文档重新导入一次就有，进度丢了人就不读了。</div>
+      <div class="note" style="margin-top:8px">保存同步码，换设备时用它恢复进度、生词和笔记。
+        <b>文档需重新导入，不包含在备份中。</b></div>
       <div class="syncrestore" style="margin-top:14px">
         <input id="syncin" placeholder="输入同步码恢复，如 K7M4X-9QPTR" maxlength="11" autocapitalize="characters">
-        <button class="btn" style="margin-top:8px" data-act="restore">用这个码恢复数据</button></div></div>`;
+        <button class="btn" style="margin-top:8px" data-act="restore">用这个码恢复数据</button></div></details>`;
 
   if (!NATIVE && APK) {
-    h += `<div class="mrow ui"><h3>安卓 App</h3>
+    h += `<details class="mrow settings-group ui"><summary>安装到手机</summary>
       <a class="btn ghost apkdl" href="/download/gloss.apk" download>下载 APK · ${esc(apkLabel())}</a>
-      <div class="note" style="margin-top:8px">${IS_ANDROID
-        ? '装完之后词典在本机，读书不用再连这台服务器。'
-        : '这是安卓安装包，在安卓手机上打开这个页面才装得了。'}
-        安装包里没有申请联网权限，装完就是彻底离线的。
-        <a href="/download">全部平台的安装方式 →</a></div></div>`;
+      <div class="note" style="margin-top:8px">适用于安卓，词典随包安装，可全程离线阅读。
+        <a href="/download">全部平台的安装方式 →</a></div></details>`;
   }
   // 服务器上没放包时上面整块不出现，但下载页该始终有路可去 ——
   // 那儿还有 iPhone 和电脑的说明。
@@ -1443,25 +1524,13 @@ async function renderMe() {
         <b>App 自己不联网</b>，也不会在后台悄悄检查更新。</div></div>`;
   }
 
-  h += `<div class="mrow ui"><h3>离线词典</h3><div class="dlbox" id="dlbox">正在检查…</div></div>
+  h += `<details class="mrow settings-group ui"><summary>离线词典</summary><div class="dlbox" id="dlbox">正在检查…</div></details>
 
-    <div class="mrow ui"><h3>英语水平</h3>
-      <button class="lvpick ui" data-act="level">
-        <span class="n">${esc(dict.level().name)}</span>
-        <span class="h">${esc(dict.level().hint)}</span>
-        <span class="ck">改</span></button>
-      <div class="note" style="margin-top:8px">这条线决定哪些词算生词：正文里标虚线的、
-        过词时要过的，都按它来。改完会把已导入的文档重算一遍。</div></div>
-
-    <div class="mrow ui"><h3>正文字号</h3><div class="fsbtns">
-      <button data-act="fs" data-d="-1">A−</button><button data-act="fs" data-d="1">A＋</button>
-      <span id="fsv">${S.settings.fs}px</span></div></div>
-
-    <div class="mrow ui"><h3>手动备份</h3>
+    <details class="mrow settings-group ui"><summary>手动备份</summary>
       <textarea class="iobox" id="iobox" placeholder="导出后复制保存；换设备时粘贴到这里再点导入"></textarea>
       <div class="row" style="margin-top:8px">
         <button class="btn" data-act="export">导出到上方</button>
-        <button class="btn" data-act="import">从上方导入</button></div></div>`;
+        <button class="btn" data-act="import">从上方导入</button></div></details>`;
 
   if (bookIds().length) {
     h += `<div class="mrow ui"><h3>我的文档</h3><ul class="vlist">`;
@@ -1480,6 +1549,8 @@ async function renderMe() {
 
   const v = $('#view-me');
   v.innerHTML = h;
+  $$('details > summary', v).forEach(el => { el.parentElement.open = expanded.includes(el.textContent); });
+  drafts.forEach(([id, value]) => { if (value !== undefined && $('#' + id)) $('#' + id).value = value; });
   wire('#view-me');
   renderDictBox();
 }
@@ -1542,13 +1613,6 @@ const ACTIONS = {
     S.books[id].lastOpen = Date.now();
     save();
     openSection(id, Math.min(S.books[id].cur || 0, S.books[id].n - 1));
-  },
-  tonight: (el) => {
-    const id = el.dataset.id, m = S.books[id];
-    const si = Math.min(m.cur || 0, m.n - 1);
-    // 一个主按钮，App 自己决定今晚该干什么：词没过就先过词，过完了就读
-    if (m.secWords && m.secWords[si] && !m.learned[si]) startWords(id, si, true);
-    else openSection(id, si);
   },
   onlywords: (el) => {
     const id = el.dataset.id, m = S.books[id];
@@ -1690,9 +1754,17 @@ const ACTIONS = {
   fs: (el) => {
     S.settings.fs = Math.min(24, Math.max(14, S.settings.fs + +el.dataset.d));
     save();
-    document.documentElement.style.setProperty('--fs', S.settings.fs + 'px');
-dict.setLevel(S.settings.level);
-    $('#fsv').textContent = S.settings.fs + 'px';
+    applyReadingSettings();
+    updateReadingControls();
+  },
+  readsettings: () => openReadingSettings(),
+  lineheight: (el) => {
+    S.settings.lineHeight = +el.dataset.value;
+    applyReadingSettings(); save(); updateReadingControls();
+  },
+  theme: (el) => {
+    S.settings.theme = el.dataset.value;
+    applyReadingSettings(); save(); updateReadingControls();
   },
   export: () => {
     const box = $('#iobox');
@@ -1756,9 +1828,9 @@ function updateBadges() {
 
 /* ================= 启动 ================= */
 
-document.documentElement.style.setProperty('--fs', S.settings.fs + 'px');
+applyReadingSettings();
 dict.setLevel(S.settings.level);
-store.onSync(() => { if (route.view === 'me') renderMe(); });
+store.onSync(() => { applyReadingSettings(); if (route.view === 'me') renderMe(); });
 go('home');
 
 // 硬件返回键：页面没用 history，goBack() 是空的，所以「返回」的语义在这里定义 ——

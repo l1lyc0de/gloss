@@ -128,7 +128,7 @@ const toolButtons = (p) => p.$$eval('#seltool.on button',
         const w = await p.$eval('#sheet.on .dw .w', (e) => e.textContent);
         ok(`点划线里的词 → 释义卡片出来了（${w}）`);
       }
-      await p.click('#dim');
+      await p.click('[aria-label="关闭释义"]');
       await p.waitForTimeout(150);
     }
   }
