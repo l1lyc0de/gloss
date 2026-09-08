@@ -9,12 +9,13 @@
     "pdf": "node pdf.js",
     "e2e": "node e2e.js",
     "ui": "node ui.js",
-    "all": "node dict.js && node formats.js && node toc.js && node readnav.js && node download.js && node demo.js && node highlight.js && node lookup.js && node ui.js && node pdf.js && node e2e.js",
+    "all": "node dict.js && node formats.js && node toc.js && node readnav.js && node download.js && node demo.js && node highlight.js && node lookupcard.js && node lookup.js && node ui.js && node pdf.js && node e2e.js",
     "toc": "node toc.js",
     "download": "node download.js",
     "demo": "node demo.js",
     "highlight": "node highlight.js",
-    "readnav": "node readnav.js"
+    "readnav": "node readnav.js",
+    "lookupcard": "node lookupcard.js"
   },
   "devDependencies": {
     "playwright": "^1.62.1"

@@ -1154,6 +1154,8 @@ function showSheet(readLookup = false) {
   sheet.scrollTop = 0;
   $('#dim').classList.toggle('on', !readLookup);
   document.body.classList.toggle('lookup-open', readLookup);
+  document.removeEventListener('click', tapAwayFromLookup, true);
+  if (readLookup) document.addEventListener('click', tapAwayFromLookup, true);
   updateLookupSpace();
   if (readLookup) {
     const word = $('#view-read w.lit');
@@ -1180,9 +1182,37 @@ function closeSheet() {
   document.body.classList.remove('lookup-open');
   clearTimeout(fnavT);
   $('#dim').classList.remove('on');
+  document.removeEventListener('click', tapAwayFromLookup, true);
   $$('w.lit').forEach((x) => x.classList.remove('lit'));
 }
 $('#dim').onclick = closeSheet;
+
+/* ---------- 点正文里的空白处关掉释义卡片 ----------
+ *
+ * 别的卡片背后都压着 #dim，点一下就走；查词卡片没有 —— 它要让正文一直看得见，
+ * 所以原来只剩右上角那个 ×。查完一个词就得去够那个小按钮，是这张卡片最费手的地方。
+ *
+ * 走捕获阶段：正文里的 <w> 和所有 data-act 按钮都会 stopPropagation，
+ * 冒泡阶段根本收不到它们。捕获期先看到事件，再按落点决定放行还是关卡片。
+ */
+function tapAwayFromLookup(e) {
+  const t = e.target;
+  if (!t || !t.closest) return closeSheet();
+  // 卡片自己、选中文字后浮出的工具条：里面还有事可做，不关
+  if (t.closest('#sheet, #seltool')) return;
+  // 点另一个词是换词，不是关闭 —— 让它自己的 onclick 去接
+  if (t.closest('w')) return;
+  // 划线拖到一半松手也会来一发 click，这时候关掉等于把人的选区一起打断
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed) return;
+
+  closeSheet();
+  // 底部标签栏、翻页这些照常响应：只吃掉正文里的空点，别把一次点击变成两件事
+  if (!t.closest('#tabbar, [data-act], button, a, input, textarea, summary')) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+}
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && $('#sheet').classList.contains('on')) {
     e.preventDefault();
