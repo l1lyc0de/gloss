@@ -1,0 +1,18 @@
+# 构建产物
+build/
+DerivedData/
+*.ipa
+*.xcarchive
+*.dSYM.zip
+
+# 每个人 Xcode 里的窗口状态、断点、当前 scheme，跟代码无关
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# 站点地址属于部署信息，仓库是公开的
+site.xcconfig
+
+# 描述文件和导出配置里带 team / 证书信息
+*.mobileprovision
+ExportOptions.local.plist

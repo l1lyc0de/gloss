@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Gloss 不收集任何数据、不做任何追踪、不调用任何「必需理由 API」。
+	     三个数组全空不是偷懒，是这个 App 的实际形态：
+	     词典和正文都在设备上，装完之后不发出任何一个出站请求。
+
+	     安卓版把这句话钉在权限表里（AndroidManifest 不申请 INTERNET，
+	     外人可以用 aapt2 自己核实）。iOS 没有等价的机制 —— 任何 App 都能联网，
+	     没有可核实的声明。所以这一版的自证换成三件事：
+	       1. 这份清单（苹果强制、进 App Store 隐私标签）
+	       2. 飞行模式下功能一件不少 —— 用户自己就能验
+	       3. 仓库是公开的，壳统共三个 Swift 文件，从头到尾没有一次网络调用 -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

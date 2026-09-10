@@ -77,7 +77,9 @@ curl localhost:5173/api/health        # → {"ok":true,...}
 - **`sync-data/` 和 `download/` 都不在 git 里**（见 `.gitignore`）。
   所以拉一份新代码上去，同步数据是空的、APK 下载入口不会出现 ——
   这两个目录得单独传，且**更新代码时务必排除 `sync-data/`**，那是线上用户的真实进度。
-- **`android/` 也不要传上去**，签名密钥在里面。
+- **`android/` 和 `ios/` 都不要传上去**。安卓那边签名密钥在里面；
+  iOS 那边没有密钥（证书在钥匙串里），但 `ios/build/` 会攒下 .xcarchive 和 .ipa，
+  几十 MB 的东西对生产机毫无用处。
 
 ---
 
@@ -230,21 +232,25 @@ App 里能看到自己的版本号，旁边一个「检查更新」——点了�
 `addJavascriptInterface` 暴露的是真正的 Java 对象，网页拿到什么就能调什么——
 这条界限是刻意划的。
 
-### APK 和网页版的差别
+### 三种壳的差别
 
-`js/env.js` 里一个 `NATIVE` 判断（认域名）管住了全部差异：
+`js/env.js` 里一个 `NATIVE` 判断管住了绝大部分差异（安卓认域名，iOS 认自定义
+scheme）。只有「怎么拿到新版」这一条两个 App 确实不同，那里才看 `PLATFORM`：
 
-| | 网页版 | APK |
-|---|---|---|
-| 词典 | 边查边下，可一次性下全 | **随包安装**，无「下载词典」这回事 |
-| 同步码 | 有，进度备份到 `/api/sync` | **没有**，进度只在本机，换设备走「手动备份」 |
-| Service Worker | 注册 | 不注册（资源本来就在本地） |
-| 朗读 | 系统 TTS | **没有** —— Android WebView 不实现 Web Speech API |
+| | 网页版 | 安卓 APK | iOS / iPadOS |
+|---|---|---|---|
+| 词典 | 边查边下，可一次性下全 | **随包安装**，无「下载词典」这回事 | 同左，648 片全在包里 |
+| 同步码 | 有，进度备份到 `/api/sync` | **没有**，走「手动备份」 | 同左 |
+| Service Worker | 注册 | 不注册（资源本来就在本地） | 同左 |
+| 朗读 | 系统 TTS | **没有** —— Android WebView 不实现 Web Speech API | **有**，25 个英文嗓音 |
+| 拿新版 | 刷新页面 | 「检查更新」用系统浏览器打开下载页 | App Store 自己提示，App 里不放入口 |
 
-朗读那条不是偷懒：WebView 里 `window.speechSynthesis` 根本不存在。
+朗读那条在安卓上不是偷懒：WebView 里 `window.speechSynthesis` 根本不存在。
 喇叭按钮因此由 CSS 整个藏掉（`.no-tts`），`speak()` 也改成静默返回 ——
 复习卡「显示释义」会自动念一次，在那儿每翻一张弹一次「不支持」纯粹是噪音。
 真要朗读，得桥接原生 `TextToSpeech`，那是另一件事。
+iOS 那栏是白捡的：`util.js` 本来就是特性检测（`'speechSynthesis' in window`），
+WKWebView 有，喇叭就自己出来了，一行代码没改。
 
 安装包**不申请 `INTERNET` 权限**。词典在包里、文档由用户自己选、进度只写本机，
 权限表是「文档内容不离开这台设备」这句话唯一能被外人核实的地方。
@@ -252,6 +258,92 @@ App 里能看到自己的版本号，旁边一个「检查更新」——点了�
 > 签名密钥在 `android/gloss-release.jks`（连同口令一起已 gitignore）。
 > **这个文件丢了就发不出更新** —— 换了签名的包 Android 会当成另一个 App，
 > 装不上去，只能先卸载，进度和生词本跟着没。请自己备份到仓库以外的地方。
+
+---
+
+## iOS / iPadOS
+
+`ios/` 里是同样一层薄壳，三个 Swift 文件，和安卓那个 Activity 做的事一一对应。
+网页那份 `public/` 两边共用，一个字节都没有分叉。
+
+```bash
+open ios/Gloss.xcodeproj              # 或者：
+xcodebuild -project ios/Gloss.xcodeproj -scheme Gloss \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+xcodebuild test -project ios/Gloss.xcodeproj -scheme Gloss \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+./ios/publish.sh                      # archive → .ipa，并核一遍签名和权限
+```
+
+需要 Xcode 16 以上（工程用 objectVersion 56，实际在 26.6 上开发）。
+`Gloss.xcodeproj/project.pbxproj` 是**手写**的，没有用 XcodeGen 之类的东西 ——
+一个只有两个 target 的壳不值得为它引一条工具链。`public/` 是一条 folder reference，
+整个目录原样进包，648 个词典分片不用逐个列进工程。
+
+### 为什么是自定义 scheme，不是 `loadFileURL`
+
+和安卓那边不用 `file:///android_asset/` 是同一个坎：网页是 ES module，
+`file://` 的来源是 opaque，模块脚本会被 CORS 直接拦掉。
+
+绕过它的办法是开 `allowFileAccessFromFileURLs` —— 那是个私有 preference，
+一个要上架的 App 不该把地基压在私有 API 上。所以走 `WKURLSchemeHandler`，
+注册 `gloss-app://local/`，这是一个正常的 origin。
+
+注册的 scheme **不能是 http/https**，那是 WebKit 的保留字，注册上去直接抛。
+所以 `env.js` 在 iOS 这边认的是 `location.protocol`，不是域名。
+
+自定义 scheme 到底算不算「安全上下文」、`localStorage` 和 `IndexedDB` 认不认它，
+是这层壳唯一压了赌注的地方 —— 认不认决定了进度、生词本和整本书的正文存不存得下来。
+`ReaderViewController.swift` 末尾那段 `selfCheck` 就是为它写的，只在 Debug 里编进去，
+`-GlossSelfCheck 1` 才跑，起来之后自己报一次：
+
+```
+origin=gloss-app://local   isSecureContext=true
+localStorage=OK            indexedDB=OK
+NATIVE=true                dict(按需读分片)=vt. 赔偿, 补偿, 保护, 保障
+```
+
+这件事浏览器测不出来（网页版跑在 https 上），安卓也测不出来
+（那边是 `WebViewAssetLoader` 给的 https 域名）。只有 WKWebView 说了算。
+
+### 安全区在原生那侧让开
+
+网页的 CSS 只用过 `env(safe-area-inset-bottom)` —— 安卓的 WebView 不延伸到状态栏，
+顶部从来不需要留。iOS 上 WKWebView 是铺满整块屏的，直接放上去灵动岛会压在标题上，
+阅读页那条 sticky 的 `.rhead` 更是被吃掉一半。
+
+修法不是给 CSS 补一套 `inset-top`（还要照顾 sticky 的粘附位置和横屏时左右的缺口），
+而是把 WebView 整个约束进 `safeAreaLayoutGuide`：网页看到的就是一块规规矩矩的矩形，
+和安卓那边的处境一字不差，两个平台共用同一份 CSS。让出来的一圈铺同一张纸。
+
+### 选中时不弹系统菜单（和安卓同一条红线）
+
+理由一字不差：这个 App 的卖点就是不用走「选中 → 菜单 → 翻译」那三步，
+而系统那个「拷贝 / 查询 / 翻译 / 共享」是原生视图，永远盖在 WebView 上面。
+安卓那边要包一层 `ActionMode.Callback`，iOS 这边是 `canPerformAction` 返回 false
+再加 `buildMenu` 里把编辑那几组删掉。两边都只清菜单、不碰选择手柄 ——
+拖着调整选区那件事必须留着。
+
+`GlossUITests` 盯这一条。**这个测试自己也被验过**：把抑制代码临时拆掉重跑，
+它会红，并报出 `menuItems = 5` —— 也就是说长按确实选中了文字、菜单确实有五项、
+拦截确实在起作用。一个「什么都没出现」的断言，不这么反着验一次，
+和它压根没跑起来是分不清的。
+
+### 不联网这件事，iOS 上怎么说
+
+安卓版把它钉在权限表里：`AndroidManifest.xml` 不申请 `INTERNET`，
+任何人用 `aapt2` 都能自己核实。**iOS 没有等价的机制** —— 任何 App 都能联网，
+没有一个可核实的声明。这张牌在 iOS 上打不出来，不必假装打得出来。
+
+换成三件能站得住的事：
+
+1. `PrivacyInfo.xcprivacy` 三个数组全空（不追踪、不收集、不用必需理由 API），
+   它会进 App Store 的隐私标签
+2. 导出的包 entitlements 里只有 team-identifier 和 application-identifier，
+   一个要用户授权的能力都没有 —— `ios/publish.sh` 每次发版都打出来给你看
+3. 飞行模式下功能一件不少，用户自己就能验
+
+行为上和安卓一模一样：词典全打包、同步码关掉、Service Worker 不注册。
 
 ---
 
@@ -314,6 +406,12 @@ gloss/
   android/         安卓 APK 的壳（一个 Activity，见下）
     app/src/main/java/com/lilycode/gloss/MainActivity.java
     publish.sh     构建 release 包并放到 download/
+  ios/             iOS / iPadOS 的壳（三个 Swift 文件，见下）
+    Gloss/AppDelegate.swift          入口，UIScene
+    Gloss/ReaderViewController.swift WKWebView、外链、菜单抑制、版本桥
+    Gloss/AssetSchemeHandler.swift   从包里喂 public/，自己报 MIME
+    GlossUITests/                    长按不弹系统菜单、点词出释义
+    publish.sh     archive + 导出 .ipa，并核一遍签名和权限
   download/        运行时生成：gloss.apk + gloss.json（不进 git）
   test/            端到端测试，见 test/README.md
   sync-data/       运行时生成，每个同步码一个 JSON（不进 git）
@@ -566,8 +664,18 @@ npm run all
 ECDICT 数据 bug（`dict`）、各种格式会不会掉内容（`formats`）、
 词典查词和粘贴（`lookup`）、PDF 三态（`pdf`）、全流程（`e2e`）、
 目录与翻页（`toc` / `readnav`）、各平台下载入口（`download`）、
-宣传口径的那句演示（`demo`）、划线与笔记（`highlight`）。
-细节见 `test/README.md`。
+宣传口径的那句演示（`demo`）、划线与笔记（`highlight`）、
+查词卡片怎么关掉（`lookupcard`）。细节见 `test/README.md`。
+
+iOS 那一侧另有一组，跑在模拟器里：
+
+```bash
+xcodebuild test -project ios/Gloss.xcodeproj -scheme Gloss \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
+
+只放**原生控件才看得见**的东西 —— 长按时系统菜单有没有冒出来，
+playwright 看不到它，adb 也管不着。剩下的都归网页那套测，不重复。
 
 `demo` 和 `highlight` 这两组各有一条是「主卖点保护」性质的，不要为了让它们过而放宽：
 演示期间**不许请求任何词典分片**（否则「点一下就出」当场被证伪），

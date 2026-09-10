@@ -14,7 +14,7 @@ import { parsePdf } from './pdf.js';
 import { parseTextDoc, parseHtmlDoc, parseDocx } from './doc.js';
 import { makeSections, englishRatio, WORD_RE, pickSentence } from './text.js';
 import * as vocab from './vocab.js';
-import { NATIVE, NATIVE_VERSION, UPDATE_URL } from './env.js';
+import { NATIVE, PLATFORM, NATIVE_VERSION, UPDATE_URL } from './env.js';
 import { wireDemo } from './demo.js';
 import * as hl from './hl.js';
 
@@ -1548,7 +1548,9 @@ async function renderMe() {
     h += `<div class="mrow ui"><h3>版本</h3>
       <div class="verline"><span class="v">Gloss ${esc(NATIVE_VERSION)}</span>${UPDATE_URL
         ? `<a class="btn ghost" href="${esc(UPDATE_URL)}">检查更新</a>` : ''}</div>
-      <div class="note" style="margin-top:8px">${UPDATE_URL
+      <div class="note" style="margin-top:8px">${PLATFORM === 'ios'
+        ? 'App Store 会自己提示新版本，这儿不用也不该再放一个检查入口。'
+        : UPDATE_URL
         ? '会用系统浏览器打开下载页，那儿写着最新版本号。有新版就在浏览器里下载安装 —— 和你第一次装它是同一条路。'
         : '这个安装包没有配下载页地址，只能手动去拿新版。'}
         <b>App 自己不联网</b>，也不会在后台悄悄检查更新。</div></div>`;

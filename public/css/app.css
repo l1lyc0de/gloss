@@ -36,12 +36,16 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var
 #app{max-width:640px;margin:0 auto;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 .view{display:none;padding:0 20px}
 .view.on{display:block}
+/* 底栏的**背景**铺满整幅，按钮组按正文那 640 居中。
+   两者分开是为了宽屏：原来整条都卡在 max-width:640 里，iPad 和桌面浏览器上
+   就是一条 640 宽的横杠悬在屏幕中间下方，两边露出纸色 —— 看着像栏没画完。
+   手机上没有区别：640 的按钮组在 390 的屏里照样收缩到平分。 */
 #tabbar{
-  position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:30;
-  width:100%;max-width:640px;background:var(--card);border-top:1px solid var(--line);
-  padding-bottom:env(safe-area-inset-bottom);display:flex;
+  position:fixed;bottom:0;left:0;right:0;z-index:30;
+  background:var(--card);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);display:flex;justify-content:center;
 }
-#tabbar button{flex:1;min-height:56px;padding:9px 0 7px;text-align:center;color:var(--ink-faint);font-size:12px;line-height:1.2}
+#tabbar button{flex:1 1 160px;max-width:160px;min-height:56px;padding:9px 0 7px;text-align:center;color:var(--ink-faint);font-size:12px;line-height:1.2}
 #tabbar button .g{display:block;font-size:19px;font-family:Georgia,'Songti SC',serif;margin-bottom:2px}
 #tabbar button.on{color:var(--lamp)}
 #tabbar.hide{display:none}
